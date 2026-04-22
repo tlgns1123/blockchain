@@ -1,0 +1,21 @@
+● OpenAuction/BlindAuction에서 리뷰 대상이 낙찰자 자신이 되는 버그가 있음. seller를 reviewee로 넘겨야 함.
+
+  Read 2 files (ctrl+o to expand)
+
+● 두 훅에 seller 읽기 추가하고 패널에서 reviewee 수정.
+
+● Update(src\hooks\useOpenAuction.ts)
+  ⎿  Added 2 lines, removed 1 line
+       9    const highestBid    = useReadContract({ address, abi: OpenAuctionABI, functionName: "highestBid" });
+      10    const state         = useReadContract({ address, abi: OpenAuctionABI, functionName: "state" });
+      11    const winner        = useReadContract({ address, abi: OpenAuctionABI, functionName: "winner" });
+      12 -  return { endTime, highestBidder, highestBid, state, winner };
+      12 +  const seller        = useReadContract({ address, abi: OpenAuctionABI, functionName: "seller" });
+      13 +  return { endTime, highestBidder, highestBid, state, winner, seller };
+      14  }
+      15
+      16  export function useBktAllowanceOpen(owner?: `0x${string}`, spender?: `0x${string}`) {
+  ⎿  You've hit your limit · resets 8am (Asia/Seoul)
+     /upgrade to increase your usage limit.
+
+이부분에서 끊겨서 이어서 진행하면되고 메인페이지 넓이 확장아직 안됐고, 리뷰는 즉시판매 거래에서만 남길수 있도록해줘 단, 리뷰보단 별점으로 남기도록해줘 그리고 경매에서 판매자가 입찰을 할 수있는 개같은 버그가 있는데 체크해서 블라인드경매랑 공개경매 둘다 로직확인하고 수정해, 경매입찰가 btk로 값 받는지 다시 체크해 1만btk입찰하는데 트랜젝션 수수료지불비용이 부족하다는 경고 뜨는게 말이 안되니까 체크해
