@@ -1,0 +1,28 @@
+# Claude
+.claude/
+CLAUDE.md
+다음구현.txt
+
+# Dependencies
+node_modules/
+
+# Next.js
+frontend/.next/
+frontend/out/
+
+# Env files
+.env
+.env.local
+.env*.local
+contracts/.env
+
+# Hardhat
+contracts/cache/
+contracts/artifacts/
+
+# Build info
+frontend/tsconfig.tsbuildinfo
+
+# OS
+.DS_Store
+Thumbs.db
