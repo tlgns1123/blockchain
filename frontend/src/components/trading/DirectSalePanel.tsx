@@ -20,12 +20,22 @@ const STATE_COLOR = [
   "text-red-400 bg-red-500/15",
 ];
 
+async function sendNotification(to: string, type: string, listingId: string, listingTitle: string, message: string) {
+  await fetch("/api/notifications", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ to, type, listingId, listingTitle, message }),
+  }).catch(() => {});
+}
+
 export default function DirectSalePanel({
   contractAddress,
   listingId,
+  listingTitle,
 }: {
   contractAddress: `0x${string}`;
   listingId?: bigint;
+  listingTitle?: string;
 }) {
   const { address } = useAccount();
   const publicClient = usePublicClient();
@@ -77,7 +87,6 @@ export default function DirectSalePanel({
         await publicClient!.waitForTransactionReceipt({ hash: approveHash });
         await refetchAllowance();
       }
-      // Alchemy로 사전 시뮬레이션 → 정확한 가스 추정 + 실패 조기 감지
       const { request } = await publicClient!.simulateContract({
         address: contractAddress,
         abi: DirectSaleABI,
@@ -88,6 +97,15 @@ export default function DirectSalePanel({
       const purchaseHash = await purchase(gas);
       await publicClient!.waitForTransactionReceipt({ hash: purchaseHash });
       refetchAll();
+      if (sellerAddr) {
+        await sendNotification(
+          sellerAddr,
+          "purchase",
+          listingId?.toString() ?? "",
+          listingTitle ?? "",
+          `구매자가 즉시구매${listingTitle ? ` '${listingTitle}'` : ""}를 완료했습니다. 수령 확인을 기다리고 있어요.`
+        );
+      }
     } catch (e) { setTxError(parseTxError(e)); }
     finally { setProcessing(false); }
   };
@@ -100,6 +118,15 @@ export default function DirectSalePanel({
       await publicClient!.waitForTransactionReceipt({ hash });
       refetchAll();
       setShowReview(true);
+      if (sellerAddr) {
+        await sendNotification(
+          sellerAddr,
+          "confirm",
+          listingId?.toString() ?? "",
+          listingTitle ?? "",
+          `구매자가${listingTitle ? ` '${listingTitle}'` : ""} 수령을 완료했습니다. BKT가 전송됩니다.`
+        );
+      }
     } catch (e) { setTxError(parseTxError(e)); }
     finally { setProcessing(false); }
   };

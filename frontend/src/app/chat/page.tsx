@@ -60,6 +60,9 @@ function MessageView({ room, myAddr }: { room: ChatRoom; myAddr: string }) {
 
       {/* 메시지 */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2 bg-gray-50">
+        {messages.length === 0 && (
+          <p className="text-center text-xs text-gray-400 mt-8">첫 메시지를 보내보세요.</p>
+        )}
         {messages.map((msg) => {
           const isMine = msg.from === myAddr.toLowerCase();
           return (
@@ -137,12 +140,14 @@ function RoomItem({
           <p className="text-sm font-semibold text-gray-900 truncate">
             {room.peerNickname ?? truncateAddress(room.peer)}
           </p>
-          <span className="text-[10px] text-gray-400 flex-shrink-0">
-            {new Date(room.lastMessage.createdAt).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" })}
-          </span>
+          {room.lastMessage?.createdAt && (
+            <span className="text-[10px] text-gray-400 flex-shrink-0">
+              {new Date(room.lastMessage.createdAt).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" })}
+            </span>
+          )}
         </div>
         <p className="text-xs text-gray-400 truncate mt-0.5">
-          {listingTitle ? `[${listingTitle}] ` : ""}{room.lastMessage.content}
+          {listingTitle ? `[${listingTitle}] ` : ""}{room.lastMessage?.content ?? "새 대화"}
         </p>
       </div>
       {room.unread > 0 && (
@@ -158,6 +163,7 @@ function RoomItem({
 function ChatPageInner() {
   const searchParams = useSearchParams();
   const filterListingId = searchParams.get("listingId");
+  const filterPeer = searchParams.get("peer");
 
   const { address } = useAccount();
   const { user } = useAuth();
@@ -172,13 +178,27 @@ function ChatPageInner() {
     ? rooms.filter((r) => r.listingId === filterListingId)
     : rooms;
 
-  // URL에 listingId 있으면 해당 방 자동 선택
+  // URL 파라미터로 방 자동 선택 (새 대화 시작 포함)
   useEffect(() => {
-    if (filterListingId && rooms.length > 0 && !selectedRoom) {
-      const target = rooms.find((r) => r.listingId === filterListingId);
-      if (target) { setSelectedRoom(target); setShowList(false); }
+    if (!filterListingId || loading) return;
+    const found = filterPeer
+      ? rooms.find((r) => r.listingId === filterListingId && r.peer === filterPeer.toLowerCase())
+      : rooms.find((r) => r.listingId === filterListingId);
+    if (found) {
+      setSelectedRoom(found);
+      setShowList(false);
+    } else if (filterPeer && !selectedRoom) {
+      // 기존 대화 없음 → 새 대화 가상 room 생성
+      setSelectedRoom({
+        listingId: filterListingId,
+        peer: filterPeer.toLowerCase(),
+        peerNickname: null,
+        lastMessage: { _id: "", listingId: filterListingId, from: "", to: "", content: "", read: true, createdAt: "" },
+        unread: 0,
+      });
+      setShowList(false);
     }
-  }, [filterListingId, rooms]);
+  }, [filterListingId, filterPeer, rooms, loading]);
 
   // 리스팅 제목 batch 조회
   const contracts = (() => { try { return getContracts(chainId); } catch { return null; } })();

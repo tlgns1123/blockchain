@@ -1,3 +1,5 @@
+"use client";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { SALE_TYPE_LABEL } from "@/types";
 import type { Listing } from "@/types";
@@ -30,6 +32,18 @@ export default function ItemCard({
   endingSoon,
   viewCount,
 }: Props) {
+  const [sellerNickname, setSellerNickname] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!listing.seller) return;
+    fetch(`/api/auth/user?wallet=${listing.seller}`)
+      .then((r) => r.json())
+      .then((d) => setSellerNickname(d.nickname ?? null))
+      .catch(() => {});
+  }, [listing.seller]);
+
+  const sellerLabel = sellerNickname ?? `${listing.seller.slice(0, 6)}...${listing.seller.slice(-4)}`;
+
   return (
     <div className="relative group">
       <Link href={`/item/${listing.id}`}>
@@ -108,7 +122,7 @@ export default function ItemCard({
               )}
             </div>
 
-            {/* 판매자 */}
+            {/* 판매자 닉네임 */}
             <div className="mt-2 pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
               <Link
                 href={`/seller/${listing.seller}`}
@@ -118,7 +132,7 @@ export default function ItemCard({
                 onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "#c4b5fd"; }}
                 onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "#565670"; }}
               >
-                {listing.seller.slice(0, 6)}...{listing.seller.slice(-4)}
+                {sellerLabel}
               </Link>
             </div>
           </div>

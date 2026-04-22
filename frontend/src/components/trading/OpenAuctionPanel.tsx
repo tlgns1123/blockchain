@@ -16,7 +16,23 @@ import CountdownTimer from "@/components/common/CountdownTimer";
 import { formatBKT, truncateAddress } from "@/lib/utils";
 import { parseTxError } from "@/lib/txError";
 
-export default function OpenAuctionPanel({ contractAddress }: { contractAddress: `0x${string}` }) {
+async function sendNotification(to: string, type: string, listingId: string, listingTitle: string, message: string) {
+  await fetch("/api/notifications", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ to, type, listingId, listingTitle, message }),
+  }).catch(() => {});
+}
+
+export default function OpenAuctionPanel({
+  contractAddress,
+  listingId,
+  listingTitle,
+}: {
+  contractAddress: `0x${string}`;
+  listingId?: bigint;
+  listingTitle?: string;
+}) {
   const { address } = useAccount();
   const publicClient = usePublicClient();
   const chainId = useChainId();
@@ -80,7 +96,6 @@ export default function OpenAuctionPanel({ contractAddress }: { contractAddress:
           await new Promise(r => setTimeout(r, 1000));
         }
       }
-      // Alchemy로 사전 시뮬레이션 → 정확한 가스 추정 + 실패 조기 감지
       const { request } = await publicClient!.simulateContract({
         address: contractAddress,
         abi: OpenAuctionABI,
@@ -93,6 +108,15 @@ export default function OpenAuctionPanel({ contractAddress }: { contractAddress:
       await publicClient!.waitForTransactionReceipt({ hash: bidHash });
       setBidInput("");
       refetchAll();
+      if (sellerAddr) {
+        await sendNotification(
+          sellerAddr,
+          "open_bid",
+          listingId?.toString() ?? "",
+          listingTitle ?? "",
+          `${formatBKT(bidWei)} 입찰이 들어왔습니다${listingTitle ? ` — '${listingTitle}'` : ""}.`
+        );
+      }
     } catch (e) { setTxError(parseTxError(e)); }
     finally { setProcessing(false); }
   };

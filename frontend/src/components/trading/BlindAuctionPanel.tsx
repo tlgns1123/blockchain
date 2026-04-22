@@ -25,7 +25,23 @@ interface SavedCommit {
   depositBkt: string;
 }
 
-export default function BlindAuctionPanel({ contractAddress }: { contractAddress: `0x${string}` }) {
+async function sendNotification(to: string, type: string, listingId: string, listingTitle: string, message: string) {
+  await fetch("/api/notifications", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ to, type, listingId, listingTitle, message }),
+  }).catch(() => {});
+}
+
+export default function BlindAuctionPanel({
+  contractAddress,
+  listingId,
+  listingTitle,
+}: {
+  contractAddress: `0x${string}`;
+  listingId?: bigint;
+  listingTitle?: string;
+}) {
   const { address } = useAccount();
   const publicClient = usePublicClient();
   const chainId = useChainId();
@@ -110,7 +126,6 @@ export default function BlindAuctionPanel({ contractAddress }: { contractAddress
         }
       }
       const commitment = makeCommitment(bidBkt, secret);
-      // Alchemy로 사전 시뮬레이션 → 정확한 가스 추정 + 실패 조기 감지
       const { request } = await publicClient!.simulateContract({
         address: contractAddress,
         abi: BlindAuctionABI,
@@ -125,6 +140,15 @@ export default function BlindAuctionPanel({ contractAddress }: { contractAddress
       localStorage.setItem(STORAGE_KEY(contractAddress), JSON.stringify(saved));
       setSavedNotice("입찰 정보가 브라우저에 저장됐어요. 공개 단계에서 자동으로 불러집니다.");
       refetchAll();
+      if (sellerAddr) {
+        await sendNotification(
+          sellerAddr,
+          "blind_bid",
+          listingId?.toString() ?? "",
+          listingTitle ?? "",
+          `새로운 블라인드 입찰이 접수됐습니다${listingTitle ? ` — '${listingTitle}'` : ""}.`
+        );
+      }
     } catch (e) { setTxError(parseTxError(e)); }
     finally { setProcessing(false); }
   };

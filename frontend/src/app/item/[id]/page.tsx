@@ -1,8 +1,7 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useAccount } from "wagmi";
 import { useListing } from "@/hooks/useMarketplace";
-import { useInquiryCount } from "@/hooks/useChat";
 import { useAuth } from "@/hooks/useAuth";
 import { useViewCount, useIncrementView } from "@/hooks/useViewCount";
 import { useReviews } from "@/hooks/useReview";
@@ -10,7 +9,6 @@ import { truncateAddress } from "@/lib/utils";
 import DirectSalePanel from "@/components/trading/DirectSalePanel";
 import OpenAuctionPanel from "@/components/trading/OpenAuctionPanel";
 import BlindAuctionPanel from "@/components/trading/BlindAuctionPanel";
-import ChatPanel from "@/components/chat/ChatPanel";
 import { SALE_TYPE_LABEL } from "@/types";
 import Link from "next/link";
 
@@ -115,14 +113,10 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
       .catch(() => {});
   }, [l?.seller]);
 
-  // 판매자면 문의 수 조회
-  const inquiryCount = useInquiryCount(params.id, isSeller);
-
   // 판매자 리뷰
   const { avg: sellerAvg, total: sellerTotal } = useReviews(l?.seller);
 
   const [showReport, setShowReport] = useState(false);
-  const chatRef = useRef<HTMLDivElement>(null);
 
   if (isLoading) {
     return (
@@ -243,22 +237,22 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
             )}
           </div>
 
-          {/* 판매자에게 연락 버튼 */}
+          {/* 판매자에게 연락하기 */}
           {user && !isSeller && (
-            <button
-              onClick={() => chatRef.current?.scrollIntoView({ behavior: "smooth" })}
+            <Link
+              href={`/chat?listingId=${params.id}&peer=${l.seller}`}
               className="w-full btn-secondary text-sm flex items-center justify-center gap-2"
             >
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" />
               </svg>
               판매자에게 연락하기
-            </button>
+            </Link>
           )}
         </div>
       </div>
 
-      {/* 거래 패널 + 채팅 */}
+      {/* 거래 패널 */}
       <div className="mt-6 relative">
         {isGuest && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center rounded-2xl overflow-hidden">
@@ -271,7 +265,7 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
               </div>
               <div className="text-center">
                 <p className="font-semibold text-sm" style={{ color: "#f0f0f8" }}>로그인 후 확인 가능합니다</p>
-                <p className="text-xs mt-1 leading-relaxed" style={{ color: "#7878a0" }}>거래 및 채팅 기능은<br />로그인 회원에게만 제공돼요.</p>
+                <p className="text-xs mt-1 leading-relaxed" style={{ color: "#7878a0" }}>거래 기능은<br />로그인 회원에게만 제공돼요.</p>
               </div>
               <Link href="/auth/login" className="btn-primary text-sm w-full text-center mt-1">
                 로그인하기
@@ -281,19 +275,9 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
         )}
 
         <div className={`space-y-4 ${isGuest ? "pointer-events-none select-none" : ""}`}>
-          {saleType === 0 && <DirectSalePanel contractAddress={l.tradeContract} listingId={listingId} />}
-          {saleType === 1 && <OpenAuctionPanel contractAddress={l.tradeContract} />}
-          {saleType === 2 && <BlindAuctionPanel contractAddress={l.tradeContract} />}
-
-          {/* 채팅 앵커: 판매자에게 연락 버튼 스크롤 타겟 */}
-          <div ref={chatRef} />
-          <ChatPanel
-            listingId={params.id}
-            sellerAddress={l.seller}
-            sellerNickname={sellerNickname}
-            isSeller={isSeller}
-            inquiryCount={inquiryCount}
-          />
+          {saleType === 0 && <DirectSalePanel contractAddress={l.tradeContract} listingId={listingId} listingTitle={l.title} />}
+          {saleType === 1 && <OpenAuctionPanel contractAddress={l.tradeContract} listingId={listingId} listingTitle={l.title} />}
+          {saleType === 2 && <BlindAuctionPanel contractAddress={l.tradeContract} listingId={listingId} listingTitle={l.title} />}
         </div>
       </div>
 
