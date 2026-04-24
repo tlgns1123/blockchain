@@ -8,9 +8,9 @@ import "../interfaces/IInterestCalculator.sol";
 
 /// @notice 공개 경매 (English Auction) - BKT 토큰 결제
 contract OpenAuction is IAuction, ReentrancyGuard {
-    IERC20               public immutable token;
-    address              public immutable platform;
-    IInterestCalculator  public immutable interestCalc;
+    IERC20 public immutable token;
+    address public immutable platform;
+    IInterestCalculator public immutable interestCalc;
 
     address public immutable seller;
     uint256 public override endTime;
@@ -35,13 +35,13 @@ contract OpenAuction is IAuction, ReentrancyGuard {
         address _platform,
         address _interestCalc
     ) {
-        seller       = _seller;
+        seller = _seller;
         reservePrice = _reservePrice;
-        endTime      = block.timestamp + _durationSeconds;
-        token        = IERC20(_token);
-        platform     = _platform;
+        endTime = block.timestamp + _durationSeconds;
+        token = IERC20(_token);
+        platform = _platform;
         interestCalc = IInterestCalculator(_interestCalc);
-        state        = AuctionState.Active;
+        state = AuctionState.Active;
         emit AuctionStarted(0, _seller, endTime);
     }
 
@@ -52,9 +52,17 @@ contract OpenAuction is IAuction, ReentrancyGuard {
         require(amount > highestBid, "Bid too low");
         require(amount >= reservePrice, "Below reserve");
         require(token.transferFrom(msg.sender, address(this), amount), "Token transfer failed");
-        if (highestBidder != address(0)) pendingReturns[highestBidder] += highestBid;
+
+        if (highestBidder != address(0) && highestBid > 0) {
+            bool refunded = token.transfer(highestBidder, highestBid);
+            if (!refunded) {
+                pendingReturns[highestBidder] += highestBid;
+            }
+            emit BidRefunded(highestBidder, highestBid);
+        }
+
         highestBidder = msg.sender;
-        highestBid    = amount;
+        highestBid = amount;
         emit BidPlaced(msg.sender, amount);
     }
 
@@ -69,8 +77,9 @@ contract OpenAuction is IAuction, ReentrancyGuard {
     function endAuction() external nonReentrant {
         require(state == AuctionState.Active, "Not active");
         require(block.timestamp >= endTime, "Not ended yet");
-        state         = AuctionState.Ended;
-        winner        = highestBidder;
+        require(msg.sender == seller || msg.sender == highestBidder, "Not authorized to end");
+        state = AuctionState.Ended;
+        winner = highestBidder;
         winningAmount = highestBid;
         emit AuctionEnded(0, winner, winningAmount);
     }
@@ -79,12 +88,16 @@ contract OpenAuction is IAuction, ReentrancyGuard {
         require(state == AuctionState.Ended, "Not ended");
         require(winner != address(0), "No winner");
         require(msg.sender == winner, "Not winner");
+
         state = AuctionState.Finalized;
         emit Finalized(0);
         emit AuctionFinalized(winner, winningAmount);
+
         uint256 fee = interestCalc.calculate(winningAmount, 0);
         uint256 sellerAmount = winningAmount > fee ? winningAmount - fee : 0;
-        if (fee > 0)          require(token.transfer(platform, fee),        "Platform fee failed");
+
+        if (fee > 0) require(token.transfer(platform, fee), "Platform fee failed");
         if (sellerAmount > 0) require(token.transfer(seller, sellerAmount), "Seller transfer failed");
     }
 }
+

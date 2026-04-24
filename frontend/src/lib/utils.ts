@@ -1,12 +1,12 @@
 import { formatEther } from "viem";
 
 export function formatETH(wei: bigint, decimals = 4): string {
-  return parseFloat(formatEther(wei)).toFixed(decimals) + " ETH";
+  return `${parseFloat(formatEther(wei)).toFixed(decimals)} ETH`;
 }
 
 export function formatBKT(raw: bigint, decimals = 0): string {
   const val = parseFloat(formatEther(raw));
-  return val.toLocaleString("en-US", { maximumFractionDigits: decimals }) + " BKT";
+  return `${val.toLocaleString("en-US", { maximumFractionDigits: decimals })} BKT`;
 }
 
 export function truncateAddress(address: string): string {
@@ -19,7 +19,7 @@ export function secondsUntil(unixTimestamp: bigint): number {
 }
 
 export function formatDuration(seconds: number): string {
-  if (seconds <= 0) return "종료됨";
+  if (seconds <= 0) return "종료";
   const h = Math.floor(seconds / 3600);
   const m = Math.floor((seconds % 3600) / 60);
   const s = seconds % 60;

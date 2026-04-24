@@ -1,4 +1,5 @@
 "use client";
+
 import { ButtonHTMLAttributes } from "react";
 
 interface TxButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -14,10 +15,7 @@ export default function TxButton({
   variant = "primary",
   ...props
 }: TxButtonProps) {
-  const base =
-    variant === "primary"
-      ? "btn-primary"
-      : "btn-secondary";
+  const base = variant === "primary" ? "btn-primary" : "btn-secondary";
 
   return (
     <button
@@ -25,9 +23,7 @@ export default function TxButton({
       disabled={disabled || loading}
       className={`${base} flex items-center justify-center gap-2 ${props.className ?? ""}`}
     >
-      {loading && (
-        <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-      )}
+      {loading && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
       {loading ? "처리 중..." : label}
     </button>
   );

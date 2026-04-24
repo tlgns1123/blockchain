@@ -1,7 +1,7 @@
+import Link from "next/link";
 import ItemCard from "./ItemCard";
 import { getStatusBadge, isEndingSoon } from "@/hooks/useTradeStates";
 import type { Listing } from "@/types";
-import Link from "next/link";
 
 interface Props {
   listings: Listing[];
@@ -27,14 +27,14 @@ export default function ItemGrid({
   if (active.length === 0) {
     return (
       <div className="py-24 text-center">
-        <div className="text-4xl mb-3">🛍️</div>
-        <p className="text-sm text-gray-500 font-medium mb-1">
-          {emptyMessage ?? "아직 등록된 상품이 없어요"}
-        </p>
+        <div className="text-4xl mb-3">🗂️</div>
+        <p className="text-sm text-gray-500 font-medium mb-1">{emptyMessage ?? "아직 등록된 상품이 없습니다."}</p>
         {!emptyMessage && (
           <>
-            <p className="text-xs text-gray-400 mb-5">첫 번째로 상품을 등록해보세요.</p>
-            <Link href="/sell" className="btn-primary text-sm">상품 등록하기</Link>
+            <p className="text-xs text-gray-400 mb-5">첫 번째 상품을 직접 등록해 보세요.</p>
+            <Link href="/sell" className="btn-primary text-sm">
+              상품 등록하기
+            </Link>
           </>
         )}
       </div>
@@ -46,9 +46,9 @@ export default function ItemGrid({
       {active.map((l) => {
         const key = l.tradeContract.toLowerCase();
         const state = stateMap?.[key];
-        const statusBadge =
-          state !== undefined ? getStatusBadge(l.saleType, state) : null;
+        const statusBadge = state !== undefined ? getStatusBadge(l.saleType, state) : null;
         const endTime = endTimeMap?.[key];
+
         return (
           <ItemCard
             key={l.id.toString()}

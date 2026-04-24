@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { findByEmail, createUser } from "@/lib/userStore";
+import { createNonce } from "@/lib/jwt";
 import { validateEmail, validatePassword, validateNickname } from "@/lib/validation";
 
 export async function POST(req: NextRequest) {
@@ -20,12 +21,34 @@ export async function POST(req: NextRequest) {
   }
 
   const passwordHash = await bcrypt.hash(password, 12);
-  const user = await createUser({ email, nickname, passwordHash });
 
-  return NextResponse.json({
-    id: user.id,
-    email: user.email,
-    nickname: user.nickname,
-    walletAddress: user.walletAddress,
-  }, { status: 201 });
+  try {
+    const user = await createUser({ email, nickname, passwordHash });
+    const nonce = createNonce(user.id);
+
+    return NextResponse.json(
+      {
+        id: user.id,
+        email: user.email,
+        nickname: user.nickname,
+        walletAddress: user.walletAddress,
+        nonce,
+      },
+      { status: 201 }
+    );
+  } catch (error: any) {
+    if (error?.code === 11000) {
+      const duplicateField = Object.keys(error.keyPattern ?? {})[0];
+
+      if (duplicateField === "email") {
+        return NextResponse.json({ error: "이미 사용 중인 이메일입니다." }, { status: 409 });
+      }
+
+      if (duplicateField === "nickname") {
+        return NextResponse.json({ error: "이미 사용 중인 닉네임입니다." }, { status: 409 });
+      }
+    }
+
+    return NextResponse.json({ error: "회원가입 처리 중 오류가 발생했습니다." }, { status: 500 });
+  }
 }

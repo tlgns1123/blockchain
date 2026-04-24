@@ -1,9 +1,11 @@
 "use client";
+
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAccount } from "wagmi";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
+import { formatUnits } from "viem";
 import { useAuth, useLogout } from "@/hooks/useAuth";
 import { useBktBalance } from "@/hooks/useToken";
 import { useChatRooms } from "@/hooks/useChat";
@@ -11,7 +13,6 @@ import type { ChatRoom } from "@/hooks/useChat";
 import { useNotifications } from "@/hooks/useNotifications";
 import type { AppNotification } from "@/hooks/useNotifications";
 import { truncateAddress } from "@/lib/utils";
-import { formatUnits } from "viem";
 
 const NAV_LINKS = [
   { href: "/marketplace", label: "거래 목록" },
@@ -28,13 +29,12 @@ function timeAgo(iso: string): string {
 }
 
 const NOTIF_ICON: Record<string, string> = {
-  purchase:  "🛒",
-  confirm:   "✅",
-  open_bid:  "🏷️",
-  blind_bid: "🔒",
+  purchase: "🛒",
+  confirm: "✅",
+  open_bid: "🏷️",
+  blind_bid: "🕶️",
 };
 
-// ─── 채팅 드롭다운 ─────────────────────────────────────────────────────────────
 function ChatDropdown({ rooms, onClose }: { rooms: ChatRoom[]; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -58,14 +58,20 @@ function ChatDropdown({ rooms, onClose }: { rooms: ChatRoom[]; onClose: () => vo
       }}
     >
       <div className="px-4 py-3 flex items-center justify-between" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-        <p className="text-sm font-semibold" style={{ color: "#f0f0f8" }}>채팅</p>
+        <p className="text-sm font-semibold" style={{ color: "#f0f0f8" }}>
+          채팅
+        </p>
         <Link
           href="/chat"
           onClick={onClose}
           className="text-[10px] transition-colors"
           style={{ color: "#7878a0" }}
-          onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "#c4b5fd"; }}
-          onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "#7878a0"; }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLElement).style.color = "#c4b5fd";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLElement).style.color = "#7878a0";
+          }}
         >
           전체 보기 →
         </Link>
@@ -73,7 +79,9 @@ function ChatDropdown({ rooms, onClose }: { rooms: ChatRoom[]; onClose: () => vo
 
       <div className="max-h-80 overflow-y-auto">
         {rooms.length === 0 ? (
-          <p className="text-center text-xs py-8" style={{ color: "#565670" }}>채팅이 없어요.</p>
+          <p className="text-center text-xs py-8" style={{ color: "#565670" }}>
+            채팅 내역이 없습니다.
+          </p>
         ) : (
           rooms.map((room) => (
             <Link
@@ -120,7 +128,6 @@ function ChatDropdown({ rooms, onClose }: { rooms: ChatRoom[]; onClose: () => vo
   );
 }
 
-// ─── 알림 드롭다운 ─────────────────────────────────────────────────────────────
 function NotificationDropdown({ notifications, onClose }: { notifications: AppNotification[]; onClose: () => void }) {
   const ref = useRef<HTMLDivElement>(null);
 
@@ -144,12 +151,16 @@ function NotificationDropdown({ notifications, onClose }: { notifications: AppNo
       }}
     >
       <div className="px-4 py-3" style={{ borderBottom: "1px solid rgba(255,255,255,0.07)" }}>
-        <p className="text-sm font-semibold" style={{ color: "#f0f0f8" }}>알림</p>
+        <p className="text-sm font-semibold" style={{ color: "#f0f0f8" }}>
+          알림
+        </p>
       </div>
 
       <div className="max-h-80 overflow-y-auto">
         {notifications.length === 0 ? (
-          <p className="text-center text-xs py-8" style={{ color: "#565670" }}>알림이 없어요.</p>
+          <p className="text-center text-xs py-8" style={{ color: "#565670" }}>
+            알림이 없습니다.
+          </p>
         ) : (
           notifications.map((n) => (
             <Link
@@ -165,14 +176,18 @@ function NotificationDropdown({ notifications, onClose }: { notifications: AppNo
               <span className="text-base mt-0.5 flex-shrink-0">{NOTIF_ICON[n.type] ?? "🔔"}</span>
               <div className="flex-1 min-w-0">
                 {n.listingTitle && (
-                  <p className="text-[10px] truncate mb-0.5" style={{ color: "#7878a0" }}>{n.listingTitle}</p>
+                  <p className="text-[10px] truncate mb-0.5" style={{ color: "#7878a0" }}>
+                    {n.listingTitle}
+                  </p>
                 )}
-                <p className="text-xs leading-snug" style={{ color: "#c4c4d8" }}>{n.message}</p>
-                <p className="text-[10px] mt-1" style={{ color: "#565670" }}>{timeAgo(n.createdAt)}</p>
+                <p className="text-xs leading-snug" style={{ color: "#c4c4d8" }}>
+                  {n.message}
+                </p>
+                <p className="text-[10px] mt-1" style={{ color: "#565670" }}>
+                  {timeAgo(n.createdAt)}
+                </p>
               </div>
-              {!n.read && (
-                <span className="w-1.5 h-1.5 rounded-full bg-brand-400 flex-shrink-0 mt-1.5" />
-              )}
+              {!n.read && <span className="w-1.5 h-1.5 rounded-full bg-brand-400 flex-shrink-0 mt-1.5" />}
             </Link>
           ))
         )}
@@ -181,7 +196,6 @@ function NotificationDropdown({ notifications, onClose }: { notifications: AppNo
   );
 }
 
-// ─── Navbar ────────────────────────────────────────────────────────────────────
 export default function Navbar() {
   const pathname = usePathname();
   const { user, isLoading } = useAuth();
@@ -191,15 +205,10 @@ export default function Navbar() {
   const [showNotifications, setShowNotifications] = useState(false);
 
   useEffect(() => {
-    if (
-      user?.walletAddress &&
-      address &&
-      status === "connected" &&
-      address.toLowerCase() !== user.walletAddress.toLowerCase()
-    ) {
+    if (user?.walletAddress && address && status === "connected" && address.toLowerCase() !== user.walletAddress.toLowerCase()) {
       logout();
     }
-  }, [address, status, user?.walletAddress]);
+  }, [address, status, user?.walletAddress, logout]);
 
   const { data: bktBalance } = useBktBalance(address);
   const { rooms, unreadTotal } = useChatRooms(!!user);
@@ -227,7 +236,6 @@ export default function Navbar() {
       }}
     >
       <div className="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
-        {/* Logo + Nav */}
         <div className="flex items-center gap-7">
           <Link href="/" className="flex items-center gap-2 group">
             <div
@@ -274,12 +282,10 @@ export default function Navbar() {
           </div>
         </div>
 
-        {/* Right side */}
         <div className="flex items-center gap-2.5">
-          {!isLoading && (
-            user ? (
+          {!isLoading &&
+            (user ? (
               <div className="flex items-center gap-2">
-                {/* BKT 잔액 */}
                 {bktBalance !== undefined && (bktBalance as bigint) > 0n && (
                   <Link
                     href="/exchange"
@@ -295,7 +301,6 @@ export default function Navbar() {
                   </Link>
                 )}
 
-                {/* 지갑 주소 */}
                 <ConnectButton.Custom>
                   {({ account, mounted }) => {
                     if (!mounted || !account) return null;
@@ -315,7 +320,6 @@ export default function Navbar() {
                   }}
                 </ConnectButton.Custom>
 
-                {/* 채팅 드롭다운 */}
                 <div className="relative">
                   <button
                     onClick={handleChatClick}
@@ -335,13 +339,9 @@ export default function Navbar() {
                       </span>
                     )}
                   </button>
-
-                  {showChat && (
-                    <ChatDropdown rooms={rooms} onClose={() => setShowChat(false)} />
-                  )}
+                  {showChat && <ChatDropdown rooms={rooms} onClose={() => setShowChat(false)} />}
                 </div>
 
-                {/* 알림 드롭다운 */}
                 <div className="relative">
                   <button
                     onClick={handleBellClick}
@@ -361,16 +361,9 @@ export default function Navbar() {
                       </span>
                     )}
                   </button>
-
-                  {showNotifications && (
-                    <NotificationDropdown
-                      notifications={notifications}
-                      onClose={() => setShowNotifications(false)}
-                    />
-                  )}
+                  {showNotifications && <NotificationDropdown notifications={notifications} onClose={() => setShowNotifications(false)} />}
                 </div>
 
-                {/* 프로필 */}
                 <Link
                   href="/profile"
                   className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-sm font-medium transition-all"
@@ -392,8 +385,12 @@ export default function Navbar() {
                   onClick={logout}
                   className="text-xs px-2 py-1 rounded-lg transition-all"
                   style={{ color: "#565670" }}
-                  onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "#a0a0bc"; }}
-                  onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "#565670"; }}
+                  onMouseEnter={(e) => {
+                    (e.currentTarget as HTMLElement).style.color = "#a0a0bc";
+                  }}
+                  onMouseLeave={(e) => {
+                    (e.currentTarget as HTMLElement).style.color = "#565670";
+                  }}
                 >
                   로그아웃
                 </button>
@@ -407,8 +404,7 @@ export default function Navbar() {
                   회원가입
                 </Link>
               </div>
-            )
-          )}
+            ))}
         </div>
       </div>
     </nav>

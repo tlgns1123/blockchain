@@ -21,7 +21,7 @@ function toUser(doc: any): User {
 
 export async function findByEmail(email: string): Promise<User | undefined> {
   await connectDB();
-  const doc = await UserModel.findOne({ email: email.toLowerCase() });
+  const doc = await UserModel.findOne({ email: email.trim().toLowerCase() });
   return doc ? toUser(doc) : undefined;
 }
 
@@ -43,7 +43,11 @@ export async function createUser(data: {
   passwordHash: string;
 }): Promise<User> {
   await connectDB();
-  const doc = await UserModel.create(data);
+  const doc = await UserModel.create({
+    email: data.email.trim().toLowerCase(),
+    nickname: data.nickname.trim(),
+    passwordHash: data.passwordHash,
+  });
   return toUser(doc);
 }
 
@@ -52,7 +56,18 @@ export async function updateUser(
   patch: Partial<Pick<User, "nickname" | "passwordHash" | "walletAddress">>
 ): Promise<User> {
   await connectDB();
-  const doc = await UserModel.findByIdAndUpdate(id, { $set: patch }, { new: true });
+
+  const nextPatch = { ...patch };
+
+  if (typeof nextPatch.nickname === "string") {
+    nextPatch.nickname = nextPatch.nickname.trim();
+  }
+
+  if (typeof nextPatch.walletAddress === "string") {
+    nextPatch.walletAddress = nextPatch.walletAddress.toLowerCase();
+  }
+
+  const doc = await UserModel.findByIdAndUpdate(id, { $set: nextPatch }, { new: true });
   if (!doc) throw new Error("User not found");
   return toUser(doc);
 }

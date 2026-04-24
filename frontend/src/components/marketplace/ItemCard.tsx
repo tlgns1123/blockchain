@@ -1,5 +1,6 @@
 "use client";
-import { useState, useEffect } from "react";
+
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { SALE_TYPE_LABEL } from "@/types";
 import type { Listing } from "@/types";
@@ -66,50 +67,43 @@ export default function ItemCard({
             el.style.transform = "translateY(0)";
           }}
         >
-          {/* Image */}
           <div className="aspect-square overflow-hidden relative" style={{ background: "rgba(255,255,255,0.03)" }}>
             {listing.imageHash ? (
               <img
-                src={
-                  listing.imageHash.startsWith("/")
-                    ? listing.imageHash
-                    : `https://ipfs.io/ipfs/${listing.imageHash}`
-                }
+                src={listing.imageHash.startsWith("/") ? listing.imageHash : `https://ipfs.io/ipfs/${listing.imageHash}`}
                 alt={listing.title}
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
               />
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center gap-2">
                 <span className="text-3xl opacity-30">📦</span>
-                <span className="text-xs" style={{ color: "#2c2c42" }}>이미지 없음</span>
+                <span className="text-xs" style={{ color: "#2c2c42" }}>
+                  이미지 없음
+                </span>
               </div>
             )}
-            {/* 마감임박 badge */}
             {endingSoon && (
               <span
                 className="absolute top-2 left-2 px-2 py-0.5 rounded-md text-[10px] font-bold text-white"
                 style={{ background: "rgba(239,68,68,0.9)", backdropFilter: "blur(4px)" }}
               >
-                마감임박
+                마감 임박
               </span>
             )}
           </div>
 
-          {/* Content */}
           <div className="p-3.5">
-            <h3 className="font-semibold text-sm truncate" style={{ color: "#f0f0f8" }}>{listing.title}</h3>
-            <p className="text-xs mt-0.5 truncate" style={{ color: "#565670" }}>{listing.description}</p>
+            <h3 className="font-semibold text-sm truncate" style={{ color: "#f0f0f8" }}>
+              {listing.title}
+            </h3>
+            <p className="text-xs mt-0.5 truncate" style={{ color: "#565670" }}>
+              {listing.description}
+            </p>
 
             <div className="mt-2.5 flex items-center justify-between gap-1.5">
               <div className="flex items-center gap-1.5 flex-wrap">
-                <span className={`badge ${BADGE[listing.saleType]}`}>
-                  {SALE_TYPE_LABEL[listing.saleType]}
-                </span>
-                {statusBadge && (
-                  <span className={`badge ${statusBadge.className}`}>
-                    {statusBadge.label}
-                  </span>
-                )}
+                <span className={`badge ${BADGE[listing.saleType]}`}>{SALE_TYPE_LABEL[listing.saleType]}</span>
+                {statusBadge && <span className={`badge ${statusBadge.className}`}>{statusBadge.label}</span>}
               </div>
               {viewCount != null && (
                 <span className="flex items-center gap-0.5 text-[10px] flex-shrink-0" style={{ color: "#565670" }}>
@@ -122,15 +116,18 @@ export default function ItemCard({
               )}
             </div>
 
-            {/* 판매자 닉네임 */}
             <div className="mt-2 pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
               <Link
                 href={`/seller/${listing.seller}`}
                 onClick={(e) => e.stopPropagation()}
                 className="text-[10px] transition-colors truncate block"
                 style={{ color: "#565670" }}
-                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "#c4b5fd"; }}
-                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "#565670"; }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.color = "#c4b5fd";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.color = "#565670";
+                }}
               >
                 {sellerLabel}
               </Link>
@@ -139,7 +136,6 @@ export default function ItemCard({
         </div>
       </Link>
 
-      {/* 찜 버튼 */}
       {onWishlistToggle && (
         <button
           onClick={(e) => {
@@ -147,9 +143,7 @@ export default function ItemCard({
             onWishlistToggle(listing.id.toString());
           }}
           className={`absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center transition-all ${
-            wishlisted
-              ? "opacity-100"
-              : "opacity-0 group-hover:opacity-100"
+            wishlisted ? "opacity-100" : "opacity-0 group-hover:opacity-100"
           }`}
           style={{
             background: wishlisted ? "rgba(239,68,68,0.9)" : "rgba(0,0,0,0.6)",

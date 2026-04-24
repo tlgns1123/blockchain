@@ -1,4 +1,5 @@
 export type SaleType = 0 | 1 | 2; // 0: DirectSale, 1: OpenAuction, 2: BlindAuction
+
 export const SALE_TYPE_LABEL: Record<SaleType, string> = {
   0: "즉시구매",
   1: "공개경매",
@@ -10,7 +11,7 @@ export interface Listing {
   seller: `0x${string}`;
   title: string;
   description: string;
-  imageHash: string; // IPFS hash
+  imageHash: string;
   saleType: SaleType;
   tradeContract: `0x${string}`;
   active: boolean;
@@ -33,9 +34,9 @@ export interface OpenAuctionState {
 }
 
 export interface BlindAuctionState {
-  endTime: bigint;        // commit 마감
-  revealEndTime: bigint;  // reveal 마감
-  state: 0 | 1 | 2;      // Active, Ended, Finalized
+  endTime: bigint; // commit 마감
+  revealEndTime: bigint; // reveal 마감
+  state: 0 | 1 | 2; // Active, Ended, Finalized
   winner: `0x${string}`;
   winningAmount: bigint;
   reservePrice: bigint;

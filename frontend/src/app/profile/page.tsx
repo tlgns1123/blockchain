@@ -1,5 +1,6 @@
 "use client";
-import { useState } from "react";
+
+import { useState, type FormEvent } from "react";
 import { useAccount } from "wagmi";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
@@ -30,16 +31,23 @@ const CONTRACT_STATE_LABEL: Record<number, { label: string; badge: string }> = {
   3: { label: "취소됨", badge: "bg-red-500/15 text-red-400" },
 };
 
-// ─── 판매 내역 행 ────────────────────────────────────────────────────────────
-function SaleRow({ listing, onDelist, delisting, contractState }: {
+function SaleRow({
+  listing,
+  onDelist,
+  delisting,
+  contractState,
+}: {
   listing: Listing;
   onDelist: (id: bigint) => void;
   delisting: boolean;
   contractState?: number;
 }) {
-  const stateInfo = contractState !== undefined
-    ? (CONTRACT_STATE_LABEL[contractState] ?? CONTRACT_STATE_LABEL[0])
-    : (listing.active ? { label: "판매중", badge: "bg-emerald-500/15 text-emerald-400" } : { label: "종료", badge: "bg-gray-200/15 text-gray-400" });
+  const stateInfo =
+    contractState !== undefined
+      ? CONTRACT_STATE_LABEL[contractState] ?? CONTRACT_STATE_LABEL[0]
+      : listing.active
+        ? { label: "판매중", badge: "bg-emerald-500/15 text-emerald-400" }
+        : { label: "종료", badge: "bg-gray-200/15 text-gray-400" };
 
   return (
     <div className="flex items-center hover:bg-gray-50 transition rounded-xl">
@@ -48,9 +56,12 @@ function SaleRow({ listing, onDelist, delisting, contractState }: {
           {listing.imageHash ? (
             <img
               src={listing.imageHash.startsWith("/") ? listing.imageHash : `https://ipfs.io/ipfs/${listing.imageHash}`}
-              alt={listing.title} className="w-full h-full object-cover rounded-xl"
+              alt={listing.title}
+              className="w-full h-full object-cover rounded-xl"
             />
-          ) : "📦"}
+          ) : (
+            "📦"
+          )}
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-gray-900 truncate">{listing.title}</p>
@@ -94,11 +105,11 @@ const BUY_STATE_LABEL: Record<number, { label: string; badge: string }> = {
   3: { label: "취소됨", badge: "bg-red-500/15 text-red-400" },
 };
 
-// ─── 구매 내역 행 ────────────────────────────────────────────────────────────
 function BuyRow({ listing, contractState }: { listing: Listing; contractState?: number }) {
-  const stateInfo = contractState !== undefined
-    ? (BUY_STATE_LABEL[contractState] ?? BUY_STATE_LABEL[1])
-    : { label: "수령 대기", badge: "bg-amber-500/15 text-amber-400" };
+  const stateInfo =
+    contractState !== undefined
+      ? BUY_STATE_LABEL[contractState] ?? BUY_STATE_LABEL[1]
+      : { label: "수령 대기", badge: "bg-amber-500/15 text-amber-400" };
 
   return (
     <Link href={`/item/${listing.id}`}>
@@ -107,9 +118,12 @@ function BuyRow({ listing, contractState }: { listing: Listing; contractState?: 
           {listing.imageHash ? (
             <img
               src={listing.imageHash.startsWith("/") ? listing.imageHash : `https://ipfs.io/ipfs/${listing.imageHash}`}
-              alt={listing.title} className="w-full h-full object-cover rounded-xl"
+              alt={listing.title}
+              className="w-full h-full object-cover rounded-xl"
             />
-          ) : "📦"}
+          ) : (
+            "📦"
+          )}
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-gray-900 truncate">{listing.title}</p>
@@ -124,8 +138,10 @@ function BuyRow({ listing, contractState }: { listing: Listing; contractState?: 
   );
 }
 
-// ─── 설정 탭 ────────────────────────────────────────────────────────────────
-function SettingsTab({ user, onUpdate }: {
+function SettingsTab({
+  user,
+  onUpdate,
+}: {
   user: { id: string; email: string; nickname: string; walletAddress: string | null };
   onUpdate: () => void;
 }) {
@@ -139,41 +155,57 @@ function SettingsTab({ user, onUpdate }: {
   const [nickLoading, setNickLoading] = useState(false);
   const [pwLoading, setPwLoading] = useState(false);
 
-  const handleNickname = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleNickname = async (event: FormEvent) => {
+    event.preventDefault();
     if (!nicknameAvailable) return;
+
     setNickLoading(true);
     setNickMsg("");
+
     const res = await fetch("/api/auth/profile", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ nickname }),
     });
     const data = await res.json();
-    setNickMsg(res.ok ? "닉네임이 변경됐습니다." : data.error);
+
+    setNickMsg(res.ok ? "닉네임이 변경되었습니다." : data.error);
     if (res.ok) onUpdate();
     setNickLoading(false);
   };
 
-  const handlePassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (newPw !== confirmPw) { setPwMsg("새 비밀번호가 일치하지 않습니다."); return; }
+  const handlePassword = async (event: FormEvent) => {
+    event.preventDefault();
+
+    if (newPw !== confirmPw) {
+      setPwMsg("새 비밀번호가 일치하지 않습니다.");
+      return;
+    }
+
     setPwLoading(true);
     setPwMsg("");
+
     const res = await fetch("/api/auth/profile", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ currentPassword: currentPw, newPassword: newPw }),
     });
     const data = await res.json();
+
     if (res.ok) {
-      setPwMsg("비밀번호가 변경됐습니다.");
-      setCurrentPw(""); setNewPw(""); setConfirmPw("");
+      setPwMsg("비밀번호가 변경되었습니다.");
+      setCurrentPw("");
+      setNewPw("");
+      setConfirmPw("");
     } else {
       setPwMsg(data.error);
     }
+
     setPwLoading(false);
   };
+
+  const isNickSuccess = nickMsg.includes("변경");
+  const isPwSuccess = pwMsg.includes("변경");
 
   return (
     <div className="divide-y divide-gray-50">
@@ -188,17 +220,22 @@ function SettingsTab({ user, onUpdate }: {
             <dt className="text-gray-500">지갑 주소</dt>
             <dd>
               {user.walletAddress ? (
-                <a href={`https://sepolia.etherscan.io/address/${user.walletAddress}`} target="_blank" rel="noreferrer" className="text-brand-500 hover:underline text-xs">
+                <a
+                  href={`https://sepolia.etherscan.io/address/${user.walletAddress}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-brand-500 hover:underline text-xs"
+                >
                   {truncateAddress(user.walletAddress)}
                 </a>
               ) : (
-                <span className="text-xs text-gray-400">미연결 (로그인 시 연결)</span>
+                <span className="text-xs text-gray-400">미연결 (로그인 후 연결)</span>
               )}
             </dd>
           </div>
         </dl>
         {user.walletAddress && (
-          <p className="text-xs text-gray-400 mt-3">지갑 주소는 보안상 변경할 수 없습니다.</p>
+          <p className="text-xs text-gray-400 mt-3">지갑 주소는 보안을 위해 변경할 수 없습니다.</p>
         )}
       </div>
 
@@ -209,13 +246,14 @@ function SettingsTab({ user, onUpdate }: {
             value={nickname}
             onChange={setNickname}
             excludeId={user.id}
-            onAvailableChange={(v) => {
-              setNicknameAvailable(nickname === user.nickname ? true : v);
+            onAvailableChange={(value) => {
+              setNicknameAvailable(nickname === user.nickname ? true : value);
             }}
           />
           {nickMsg && (
-            <p className={`text-xs flex items-center gap-1 ${nickMsg.includes("됐") ? "text-emerald-600" : "text-red-500"}`}>
-              <span>{nickMsg.includes("됐") ? "✓" : "✕"}</span>{nickMsg}
+            <p className={`text-xs flex items-center gap-1 ${isNickSuccess ? "text-emerald-600" : "text-red-500"}`}>
+              <span>{isNickSuccess ? "✅" : "⚠️"}</span>
+              {nickMsg}
             </p>
           )}
           <button
@@ -231,23 +269,49 @@ function SettingsTab({ user, onUpdate }: {
       <div className="p-5">
         <h3 className="text-sm font-semibold text-gray-900 mb-4">비밀번호 변경</h3>
         <form onSubmit={handlePassword} className="space-y-3">
-          <input type="password" className="input-base" placeholder="현재 비밀번호" value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} autoComplete="current-password" />
+          <input
+            type="password"
+            className="input-base"
+            placeholder="현재 비밀번호"
+            value={currentPw}
+            onChange={(event) => setCurrentPw(event.target.value)}
+            autoComplete="current-password"
+          />
           <div>
-            <input type="password" className="input-base" placeholder="새 비밀번호" value={newPw} onChange={(e) => setNewPw(e.target.value)} autoComplete="new-password" />
+            <input
+              type="password"
+              className="input-base"
+              placeholder="새 비밀번호"
+              value={newPw}
+              onChange={(event) => setNewPw(event.target.value)}
+              autoComplete="new-password"
+            />
             <PasswordRequirements value={newPw} />
           </div>
           <div>
-            <input type="password" className="input-base" placeholder="새 비밀번호 확인" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} autoComplete="new-password" />
+            <input
+              type="password"
+              className="input-base"
+              placeholder="새 비밀번호 확인"
+              value={confirmPw}
+              onChange={(event) => setConfirmPw(event.target.value)}
+              autoComplete="new-password"
+            />
             {confirmPw && (
-              <p className={`text-xs mt-1.5 flex items-center gap-1 ${newPw === confirmPw ? "text-emerald-600" : "text-red-500"}`}>
-                <span>{newPw === confirmPw ? "✓" : "✕"}</span>
-                {newPw === confirmPw ? "비밀번호가 일치해요." : "비밀번호가 일치하지 않아요."}
+              <p
+                className={`text-xs mt-1.5 flex items-center gap-1 ${
+                  newPw === confirmPw ? "text-emerald-600" : "text-red-500"
+                }`}
+              >
+                <span>{newPw === confirmPw ? "✅" : "⚠️"}</span>
+                {newPw === confirmPw ? "비밀번호가 일치합니다." : "비밀번호가 일치하지 않습니다."}
               </p>
             )}
           </div>
           {pwMsg && (
-            <p className={`text-xs flex items-center gap-1 ${pwMsg.includes("됐") ? "text-emerald-600" : "text-red-500"}`}>
-              <span>{pwMsg.includes("됐") ? "✓" : "✕"}</span>{pwMsg}
+            <p className={`text-xs flex items-center gap-1 ${isPwSuccess ? "text-emerald-600" : "text-red-500"}`}>
+              <span>{isPwSuccess ? "✅" : "⚠️"}</span>
+              {pwMsg}
             </p>
           )}
           <button type="submit" disabled={pwLoading || !currentPw || !newPw || !confirmPw} className="btn-primary text-sm">
@@ -259,7 +323,6 @@ function SettingsTab({ user, onUpdate }: {
   );
 }
 
-// ─── 메인 페이지 ─────────────────────────────────────────────────────────────
 export default function ProfilePage() {
   const { address } = useAccount();
   const { user, isLoading } = useAuth();
@@ -276,10 +339,9 @@ export default function ProfilePage() {
     userAddr ?? undefined
   );
 
-  // 판매/구매 내역 컨트랙트 상태
-  const myListingsForState = (allListings as Listing[] | undefined)?.filter(
-    (l) => l.seller?.toLowerCase() === userAddr?.toLowerCase()
-  ) ?? [];
+  const myListingsForState =
+    (allListings as Listing[] | undefined)?.filter((listing) => listing.seller?.toLowerCase() === userAddr?.toLowerCase()) ?? [];
+
   const { stateMap: saleStateMap } = useTradeStates(myListingsForState);
   const { stateMap: buyStateMap } = useTradeStates(bought);
 
@@ -295,33 +357,32 @@ export default function ProfilePage() {
     return (
       <div className="max-w-xl mx-auto pt-10 text-center">
         <div className="card p-10">
-          <div className="text-4xl mb-4">🔗</div>
+          <div className="text-4xl mb-4">🔐</div>
           <h2 className="text-lg font-semibold text-gray-900 mb-2">로그인이 필요해요</h2>
-          <p className="text-sm text-gray-500 mb-6">내 활동 내역을 보려면 로그인해주세요.</p>
-          <Link href="/auth/login" className="btn-primary text-sm">로그인하기</Link>
+          <p className="text-sm text-gray-500 mb-6">내 활동 내역을 보려면 로그인해 주세요.</p>
+          <Link href="/auth/login" className="btn-primary text-sm">
+            로그인하기
+          </Link>
         </div>
       </div>
     );
   }
 
-  const myListings = (allListings as Listing[] | undefined)?.filter(
-    (l) => l.seller?.toLowerCase() === userAddr?.toLowerCase()
-  ) ?? [];
+  const myListings =
+    (allListings as Listing[] | undefined)?.filter((listing) => listing.seller?.toLowerCase() === userAddr?.toLowerCase()) ?? [];
 
-  const wishlistedListings = (allListings as Listing[] | undefined)?.filter(
-    (l) => isWishlisted(l.id.toString())
-  ) ?? [];
+  const wishlistedListings =
+    (allListings as Listing[] | undefined)?.filter((listing) => isWishlisted(listing.id.toString())) ?? [];
 
   const TABS: { key: Tab; label: string; count: number | null }[] = [
     { key: "selling", label: "판매 내역", count: myListings.length },
-    { key: "buying",  label: "구매 내역", count: bought.length },
-    { key: "wishlist", label: "찜 목록",  count: wishlistIds.length },
-    { key: "settings", label: "설정",     count: null },
+    { key: "buying", label: "구매 내역", count: bought.length },
+    { key: "wishlist", label: "찜 목록", count: wishlistIds.length },
+    { key: "settings", label: "설정", count: null },
   ];
 
   return (
     <div className="max-w-2xl mx-auto">
-      {/* 프로필 헤더 */}
       <div className="card p-6 mb-6 flex items-center gap-4">
         <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-brand-300 to-brand-500 flex items-center justify-center text-white text-xl font-bold shadow-sm">
           {user.nickname.slice(0, 1).toUpperCase()}
@@ -332,7 +393,12 @@ export default function ProfilePage() {
           <div className="flex items-center gap-2 mt-1">
             <span className="badge bg-brand-50 text-brand-600">Sepolia</span>
             {user.walletAddress && (
-              <a href={`https://sepolia.etherscan.io/address/${user.walletAddress}`} target="_blank" rel="noreferrer" className="text-xs text-gray-400 hover:text-gray-600 transition">
+              <a
+                href={`https://sepolia.etherscan.io/address/${user.walletAddress}`}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-gray-400 hover:text-gray-600 transition"
+              >
                 {truncateAddress(user.walletAddress)} →
               </a>
             )}
@@ -344,25 +410,29 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {/* 탭 */}
-      <div className="flex gap-1 mb-4 p-1 rounded-xl overflow-x-auto" style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}>
+      <div
+        className="flex gap-1 mb-4 p-1 rounded-xl overflow-x-auto"
+        style={{ background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.06)" }}
+      >
         {TABS.map(({ key, label, count }) => (
           <button
             key={key}
             onClick={() => setTab(key)}
             className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap"
-            style={tab === key
-              ? { background: "rgba(139,92,246,0.2)", color: "#c4b5fd", boxShadow: "0 0 12px rgba(139,92,246,0.2)" }
-              : { color: "#565670" }
+            style={
+              tab === key
+                ? { background: "rgba(139,92,246,0.2)", color: "#c4b5fd", boxShadow: "0 0 12px rgba(139,92,246,0.2)" }
+                : { color: "#565670" }
             }
           >
             {label}
             {count !== null && (
               <span
                 className="text-xs px-1.5 py-0.5 rounded-full font-bold"
-                style={tab === key
-                  ? { background: "rgba(139,92,246,0.25)", color: "#c4b5fd" }
-                  : { background: "rgba(255,255,255,0.08)", color: "#565670" }
+                style={
+                  tab === key
+                    ? { background: "rgba(139,92,246,0.25)", color: "#c4b5fd" }
+                    : { background: "rgba(255,255,255,0.08)", color: "#565670" }
                 }
               >
                 {count}
@@ -372,11 +442,9 @@ export default function ProfilePage() {
         ))}
       </div>
 
-      {/* 탭 내용 */}
       <div className="card overflow-hidden">
-        {/* 판매 내역 */}
-        {tab === "selling" && (
-          listingsLoading ? (
+        {tab === "selling" &&
+          (listingsLoading ? (
             <div className="py-16 text-center">
               <div className="w-6 h-6 border-2 border-brand-300 border-t-brand-500 rounded-full animate-spin mx-auto mb-3" />
               <p className="text-xs text-gray-400">불러오는 중...</p>
@@ -384,11 +452,13 @@ export default function ProfilePage() {
           ) : myListings.length === 0 ? (
             <div>
               <div className="py-16 text-center">
-                <div className="text-4xl mb-3">📭</div>
+                <div className="text-4xl mb-3">📦</div>
                 <p className="text-sm text-gray-400">아직 등록한 상품이 없어요.</p>
               </div>
               <div className="pb-8 text-center">
-                <Link href="/sell" className="btn-primary text-sm">첫 상품 등록하기</Link>
+                <Link href="/sell" className="btn-primary text-sm">
+                  첫 상품 등록하기
+                </Link>
               </div>
             </div>
           ) : (
@@ -399,23 +469,24 @@ export default function ProfilePage() {
                   listing={listing}
                   delisting={delisting}
                   contractState={saleStateMap[listing.tradeContract.toLowerCase()]}
-                  onDelist={async (id) => { await delistItem(id); refetchListings(); }}
+                  onDelist={async (id) => {
+                    await delistItem(id);
+                    refetchListings();
+                  }}
                 />
               ))}
             </div>
-          )
-        )}
+          ))}
 
-        {/* 구매 내역 */}
-        {tab === "buying" && (
-          buyingLoading || listingsLoading ? (
+        {tab === "buying" &&
+          (buyingLoading || listingsLoading ? (
             <div className="py-16 text-center">
               <div className="w-6 h-6 border-2 border-brand-300 border-t-brand-500 rounded-full animate-spin mx-auto mb-3" />
               <p className="text-xs text-gray-400">불러오는 중...</p>
             </div>
           ) : bought.length === 0 ? (
             <div className="py-16 text-center">
-              <div className="text-4xl mb-3">🛒</div>
+              <div className="text-4xl mb-3">🛍️</div>
               <p className="text-sm text-gray-400">아직 구매한 상품이 없어요.</p>
             </div>
           ) : (
@@ -424,35 +495,24 @@ export default function ProfilePage() {
                 <BuyRow key={String(listing.id)} listing={listing} contractState={buyStateMap[listing.tradeContract.toLowerCase()]} />
               ))}
             </div>
-          )
-        )}
+          ))}
 
-        {/* 찜 목록 */}
-        {tab === "wishlist" && (
-          wishlistedListings.length === 0 ? (
+        {tab === "wishlist" &&
+          (wishlistedListings.length === 0 ? (
             <div className="py-16 text-center">
-              <div className="text-4xl mb-3">🤍</div>
+              <div className="text-4xl mb-3">💜</div>
               <p className="text-sm text-gray-400">찜한 상품이 없어요.</p>
               <p className="text-xs text-gray-400 mt-1">마켓플레이스에서 마음에 드는 상품을 찜해보세요.</p>
             </div>
           ) : (
             <div className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
               {wishlistedListings.map((listing) => (
-                <ItemCard
-                  key={String(listing.id)}
-                  listing={listing}
-                  wishlisted={true}
-                  onWishlistToggle={toggleWishlist}
-                />
+                <ItemCard key={String(listing.id)} listing={listing} wishlisted={true} onWishlistToggle={toggleWishlist} />
               ))}
             </div>
-          )
-        )}
+          ))}
 
-        {/* 설정 */}
-        {tab === "settings" && (
-          <SettingsTab user={user} onUpdate={() => qc.invalidateQueries({ queryKey: ["me"] })} />
-        )}
+        {tab === "settings" && <SettingsTab user={user} onUpdate={() => qc.invalidateQueries({ queryKey: ["me"] })} />}
       </div>
     </div>
   );

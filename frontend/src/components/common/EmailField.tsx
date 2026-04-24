@@ -1,4 +1,5 @@
 "use client";
+
 import { useEffect, useRef, useState } from "react";
 import { EMAIL_REGEX } from "@/lib/validation";
 
@@ -17,13 +18,21 @@ export default function EmailField({ value, onChange, onAvailableChange }: Email
 
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
-    if (!value) { setStatus("idle"); setMessage(""); onAvailableChange?.(false); return; }
+
+    if (!value) {
+      setStatus("idle");
+      setMessage("");
+      onAvailableChange?.(false);
+      return;
+    }
+
     if (!EMAIL_REGEX.test(value)) {
       setStatus("invalid");
       setMessage("올바른 이메일 형식이 아닙니다.");
       onAvailableChange?.(false);
       return;
     }
+
     setStatus("checking");
     timer.current = setTimeout(async () => {
       try {
@@ -37,17 +46,18 @@ export default function EmailField({ value, onChange, onAvailableChange }: Email
         onAvailableChange?.(false);
       }
     }, 500);
-  }, [value]);
+  }, [value, onAvailableChange]);
 
   const borderColor =
-    status === "available" ? "border-emerald-300" :
-    status === "taken" || status === "invalid" ? "border-red-300" : "";
+    status === "available" ? "border-emerald-300" : status === "taken" || status === "invalid" ? "border-red-300" : "";
 
   return (
     <div>
       <div className="relative">
         <input
-          type="email" required autoComplete="email"
+          type="email"
+          required
+          autoComplete="email"
           className={`input-base pr-8 ${borderColor}`}
           placeholder="example@email.com"
           value={value}
@@ -60,8 +70,7 @@ export default function EmailField({ value, onChange, onAvailableChange }: Email
         </div>
       </div>
       {message && (
-        <p className={`text-xs mt-1.5 flex items-center gap-1
-          ${status === "available" ? "text-emerald-600" : "text-red-500"}`}>
+        <p className={`text-xs mt-1.5 flex items-center gap-1 ${status === "available" ? "text-emerald-600" : "text-red-500"}`}>
           <span>{status === "available" ? "✓" : "✕"}</span>
           {message}
         </p>

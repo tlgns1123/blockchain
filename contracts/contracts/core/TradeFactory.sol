@@ -1,23 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import "../interfaces/IMarketplace.sol";
 import "../trading/DirectSale.sol";
 import "../trading/OpenAuction.sol";
 import "../trading/BlindAuction.sol";
 
-interface IMarketplace {
-    enum SaleType { DirectSale, OpenAuction, BlindAuction }
-    function listItem(
-        string calldata title,
-        string calldata description,
-        string calldata imageHash,
-        SaleType saleType,
-        address tradeContract,
-        address seller
-    ) external returns (uint256);
-}
-
-/// @notice ê±°ë˜ ì»¨íŠ¸ë™íŠ¸ ë°°í¬ + ë§ˆì¼“í”Œë ˆì´ìŠ¤ ë“±ë¡ì„ 1 íŠ¸ëœì­ì…˜ìœ¼ë¡œ ì²˜ë¦¬
+/// @notice °Å·¡ ÄÁÆ®·¢Æ® ¹èÆ÷ + ¸¶ÄÏÇÃ·¹ÀÌ½º µî·ÏÀ» 1 Æ®·£Àè¼ÇÀ¸·Î Ã³¸®
 contract TradeFactory {
     address public immutable marketplace;
     address public immutable tokenAddr;
@@ -28,15 +17,10 @@ contract TradeFactory {
     event OpenAuctionCreated(address indexed seller, address indexed tradeContract, uint256 listingId);
     event BlindAuctionCreated(address indexed seller, address indexed tradeContract, uint256 listingId);
 
-    constructor(
-        address _marketplace,
-        address _token,
-        address _platform,
-        address _interestCalc
-    ) {
-        marketplace      = _marketplace;
-        tokenAddr        = _token;
-        platformAddr     = _platform;
+    constructor(address _marketplace, address _token, address _platform, address _interestCalc) {
+        marketplace = _marketplace;
+        tokenAddr = _token;
+        platformAddr = _platform;
         interestCalcAddr = _interestCalc;
     }
 
@@ -48,7 +32,9 @@ contract TradeFactory {
     ) external returns (address tradeContract, uint256 listingId) {
         tradeContract = address(new DirectSale(price, msg.sender, tokenAddr, platformAddr, interestCalcAddr));
         listingId = IMarketplace(marketplace).listItem(
-            title, description, imageHash,
+            title,
+            description,
+            imageHash,
             IMarketplace.SaleType.DirectSale,
             tradeContract,
             msg.sender
@@ -63,9 +49,13 @@ contract TradeFactory {
         uint256 reservePrice,
         uint256 durationSeconds
     ) external returns (address tradeContract, uint256 listingId) {
-        tradeContract = address(new OpenAuction(reservePrice, durationSeconds, msg.sender, tokenAddr, platformAddr, interestCalcAddr));
+        tradeContract = address(
+            new OpenAuction(reservePrice, durationSeconds, msg.sender, tokenAddr, platformAddr, interestCalcAddr)
+        );
         listingId = IMarketplace(marketplace).listItem(
-            title, description, imageHash,
+            title,
+            description,
+            imageHash,
             IMarketplace.SaleType.OpenAuction,
             tradeContract,
             msg.sender
@@ -81,9 +71,21 @@ contract TradeFactory {
         uint256 commitDuration,
         uint256 revealDuration
     ) external returns (address tradeContract, uint256 listingId) {
-        tradeContract = address(new BlindAuction(reservePrice, commitDuration, revealDuration, msg.sender, tokenAddr, platformAddr, interestCalcAddr));
+        tradeContract = address(
+            new BlindAuction(
+                reservePrice,
+                commitDuration,
+                revealDuration,
+                msg.sender,
+                tokenAddr,
+                platformAddr,
+                interestCalcAddr
+            )
+        );
         listingId = IMarketplace(marketplace).listItem(
-            title, description, imageHash,
+            title,
+            description,
+            imageHash,
             IMarketplace.SaleType.BlindAuction,
             tradeContract,
             msg.sender

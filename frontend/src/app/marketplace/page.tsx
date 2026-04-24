@@ -1,11 +1,12 @@
 "use client";
-import { useState, useMemo } from "react";
+
+import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useListings } from "@/hooks/useMarketplace";
 import { useWishlist } from "@/hooks/useWishlist";
 import { useTradeStates } from "@/hooks/useTradeStates";
 import { useViewCounts } from "@/hooks/useViewCount";
 import ItemGrid from "@/components/marketplace/ItemGrid";
-import Link from "next/link";
 import type { Listing, SaleType } from "@/types";
 import { SALE_TYPE_LABEL } from "@/types";
 
@@ -21,7 +22,7 @@ type SortKey = "newest" | "oldest" | "views";
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: "newest", label: "최신순" },
   { key: "oldest", label: "오래된순" },
-  { key: "views",  label: "조회수순" },
+  { key: "views", label: "조회순" },
 ];
 
 export default function MarketplacePage() {
@@ -36,23 +37,21 @@ export default function MarketplacePage() {
 
   const filtered = useMemo(() => {
     let result = (listings as Listing[] | undefined) ?? [];
-    // active=false거나 컨트랙트 state가 완료(2)/취소(3)인 항목 제외
+
     result = result.filter((l) => {
       if (!l.active) return false;
       const s = stateMap[l.tradeContract.toLowerCase()];
       if (s === 2 || s === 3) return false;
       return true;
     });
+
     if (saleFilter !== "all") result = result.filter((l) => l.saleType === saleFilter);
+
     if (query.trim()) {
       const q = query.trim().toLowerCase();
-      result = result.filter(
-        (l) =>
-          l.title.toLowerCase().includes(q) ||
-          l.description.toLowerCase().includes(q)
-      );
+      result = result.filter((l) => l.title.toLowerCase().includes(q) || l.description.toLowerCase().includes(q));
     }
-    // 정렬
+
     result = [...result].sort((a, b) => {
       if (sort === "newest") return Number(b.id - a.id);
       if (sort === "oldest") return Number(a.id - b.id);
@@ -63,6 +62,7 @@ export default function MarketplacePage() {
       }
       return 0;
     });
+
     return result;
   }, [listings, stateMap, query, saleFilter, sort, viewCounts]);
 
@@ -70,16 +70,20 @@ export default function MarketplacePage() {
 
   return (
     <div className="max-w-7xl mx-auto">
-      {/* 헤더 */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-xl font-bold" style={{ color: "#f0f0f8" }}>거래 목록</h1>
-          <p className="text-sm mt-0.5" style={{ color: "#565670" }}>블록체인에 등록된 중고 상품들</p>
+          <h1 className="text-xl font-bold" style={{ color: "#f0f0f8" }}>
+            거래 목록
+          </h1>
+          <p className="text-sm mt-0.5" style={{ color: "#565670" }}>
+            블록체인에 등록된 중고 상품을 둘러보세요.
+          </p>
         </div>
-        <Link href="/sell" className="btn-primary text-sm">+ 판매 등록</Link>
+        <Link href="/sell" className="btn-primary text-sm">
+          + 판매 등록
+        </Link>
       </div>
 
-      {/* 검색창 */}
       <div className="relative mb-3">
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -89,19 +93,17 @@ export default function MarketplacePage() {
           stroke="currentColor"
           className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none"
         >
-          <path strokeLinecap="round" strokeLinejoin="round"
-            d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
         </svg>
         <input
           type="text"
-          placeholder="상품명 또는 설명으로 검색"
+          placeholder="상품명이나 설명으로 검색"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="input-base pl-9 pr-4"
         />
       </div>
 
-      {/* 거래 방식 필터 + 정렬 */}
       <div className="flex items-center justify-between gap-3 mb-5">
         <div className="flex gap-1.5 overflow-x-auto pb-1 flex-1">
           {FILTER_TABS.map(({ key, label }) => (
@@ -131,7 +133,9 @@ export default function MarketplacePage() {
           }}
         >
           {SORT_OPTIONS.map(({ key, label }) => (
-            <option key={key} value={key}>{label}</option>
+            <option key={key} value={key}>
+              {label}
+            </option>
           ))}
         </select>
       </div>
@@ -143,11 +147,7 @@ export default function MarketplacePage() {
         </div>
       ) : (
         <>
-          {isSearching && (
-            <p className="text-xs text-gray-400 mb-3">
-              검색 결과 {filtered.filter((l) => l.active).length}개
-            </p>
-          )}
+          {isSearching && <p className="text-xs text-gray-400 mb-3">검색 결과 {filtered.filter((l) => l.active).length}개</p>}
           <ItemGrid
             listings={filtered}
             stateMap={stateMap}
@@ -155,7 +155,7 @@ export default function MarketplacePage() {
             viewCounts={viewCounts}
             wishlisted={wishlistIds}
             onWishlistToggle={toggle}
-            emptyMessage={isSearching ? "검색 결과가 없어요" : undefined}
+            emptyMessage={isSearching ? "검색 결과가 없습니다." : undefined}
           />
         </>
       )}

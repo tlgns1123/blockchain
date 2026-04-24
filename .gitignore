@@ -19,6 +19,8 @@ contracts/.env
 # Hardhat
 contracts/cache/
 contracts/artifacts/
+contracts/.tmp-*/
+*.log
 
 # Build info
 frontend/tsconfig.tsbuildinfo
@@ -26,3 +28,12 @@ frontend/tsconfig.tsbuildinfo
 # OS
 .DS_Store
 Thumbs.db
+.omx/
+.codex/*
+!.codex/agents/
+!.codex/agents/**
+!.codex/skills/
+!.codex/skills/**
+.codex/skills/.system/**
+!.codex/prompts/
+!.codex/prompts/**

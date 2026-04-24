@@ -9,18 +9,16 @@ describe("InterestCalculator", function () {
     calc = await InterestCalculator.deploy();
   });
 
-  it("연 5% 이자 계산 (1 ETH, 1년)", async () => {
-    const principal = ethers.parseEther("1.0");
-    const oneYear = 365 * 24 * 3600;
-    const interest = await calc.calculate(principal, oneYear);
-    // 1 ETH * 5% = 0.05 ETH
-    expect(interest).to.equal(ethers.parseEther("0.05"));
+  it("calculates a fixed 2.5 percent fee", async () => {
+    const principal = ethers.parseEther("1");
+    const fee = await calc.calculate(principal, 365 * 24 * 3600);
+    expect(fee).to.equal(ethers.parseEther("0.025"));
   });
 
-  it("짧은 기간 이자 계산", async () => {
-    const principal = ethers.parseEther("1.0");
-    const oneDay = 24 * 3600;
-    const interest = await calc.calculate(principal, oneDay);
-    expect(interest).to.be.gt(0n);
+  it("returns the same fee regardless of duration", async () => {
+    const principal = ethers.parseEther("5");
+    const shortFee = await calc.calculate(principal, 60);
+    const longFee = await calc.calculate(principal, 365 * 24 * 3600);
+    expect(shortFee).to.equal(longFee);
   });
 });
