@@ -4,7 +4,7 @@ import { NotificationModel } from "@/lib/models/Notification";
 import { getAuthUser } from "@/lib/authMiddleware";
 import { getBlindCommitDeposit, getListingTradeContext, isServerChainReady } from "@/lib/serverChain";
 
-const ALLOWED_NOTIFICATION_TYPES = new Set(["purchase", "confirm", "open_bid", "blind_bid"]);
+const ALLOWED_NOTIFICATION_TYPES = new Set(["purchase", "confirm", "cancel", "auction_end", "open_bid", "blind_bid"]);
 
 export async function GET(req: NextRequest) {
   const user = await getAuthUser(req);
@@ -46,25 +46,54 @@ export async function POST(req: NextRequest) {
   const sender = user.walletAddress.toLowerCase();
   const recipient = String(body.to).toLowerCase();
   const seller = context.listing.seller.toLowerCase();
-
-  if (recipient !== seller) {
-    return NextResponse.json({ error: "판매자에게만 알림을 보낼 수 있습니다." }, { status: 400 });
-  }
+  const ZERO = "0x0000000000000000000000000000000000000000";
 
   let allowed = false;
 
-  if (body.type === "purchase" || body.type === "confirm") {
+  if (body.type === "purchase") {
     if (context.trade.kind === "direct") {
       allowed =
         context.trade.buyer.toLowerCase() === sender &&
-        context.trade.seller.toLowerCase() === recipient &&
-        (body.type === "purchase" ? context.trade.state >= 1 : context.trade.state === 2);
+        recipient === seller &&
+        context.trade.state >= 1;
+    }
+  } else if (body.type === "confirm") {
+    if (context.trade.kind === "direct") {
+      allowed =
+        context.trade.buyer.toLowerCase() === sender &&
+        recipient === seller &&
+        context.trade.state === 2;
+    } else if (context.trade.kind === "open" || context.trade.kind === "blind") {
+      const winner = context.trade.winner.toLowerCase();
+      allowed =
+        winner !== ZERO &&
+        winner === sender &&
+        recipient === seller &&
+        context.trade.state === 2;
+    }
+  } else if (body.type === "cancel") {
+    if (context.trade.kind === "direct") {
+      const buyer = context.trade.buyer.toLowerCase();
+      allowed =
+        sender === seller &&
+        recipient === buyer &&
+        buyer !== ZERO &&
+        context.trade.state === 3;
+    }
+  } else if (body.type === "auction_end") {
+    if (context.trade.kind === "open" || context.trade.kind === "blind") {
+      const highBidder = context.trade.highestBidder.toLowerCase();
+      allowed =
+        highBidder !== ZERO &&
+        (sender === seller || sender === highBidder) &&
+        recipient === highBidder &&
+        context.trade.state === 1;
     }
   } else if (body.type === "open_bid") {
     if (context.trade.kind === "open") {
       allowed =
         context.trade.highestBidder.toLowerCase() === sender &&
-        context.trade.seller.toLowerCase() === recipient &&
+        recipient === seller &&
         context.trade.state === 0;
     }
   } else if (body.type === "blind_bid") {

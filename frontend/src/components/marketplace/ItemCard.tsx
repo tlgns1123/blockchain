@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { SALE_TYPE_LABEL } from "@/types";
 import type { Listing } from "@/types";
+import { ipfsUrl } from "@/lib/ipfs";
+import { formatBKT } from "@/lib/utils";
 
 const BADGE: Record<0 | 1 | 2, string> = {
   0: "bg-emerald-500/15 text-emerald-400",
@@ -16,13 +18,43 @@ interface StatusBadge {
   className: string;
 }
 
+function MiniCountdown({ endTime }: { endTime: bigint }) {
+  const [remaining, setRemaining] = useState(() => {
+    const diff = Number(endTime) - Math.floor(Date.now() / 1000);
+    return diff > 0 ? diff : 0;
+  });
+
+  useEffect(() => {
+    const tick = () => {
+      const diff = Number(endTime) - Math.floor(Date.now() / 1000);
+      setRemaining(diff > 0 ? diff : 0);
+    };
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [endTime]);
+
+  if (remaining <= 0) return <span style={{ color: "#ef4444" }}>종료</span>;
+
+  const h = Math.floor(remaining / 3600);
+  const m = Math.floor((remaining % 3600) / 60);
+  const s = remaining % 60;
+
+  const color = remaining < 3600 ? "#ef4444" : remaining < 86400 ? "#f59e0b" : "#a0a0bc";
+  const text = h > 0 ? `${h}h ${m}m` : `${m}m ${s}s`;
+
+  return <span style={{ color }}>{text}</span>;
+}
+
 interface Props {
   listing: Listing;
   wishlisted?: boolean;
   onWishlistToggle?: (id: string) => void;
   statusBadge?: StatusBadge | null;
   endingSoon?: boolean;
+  endTime?: bigint;
   viewCount?: number;
+  sellerNickname?: string;
+  price?: bigint;
 }
 
 export default function ItemCard({
@@ -31,19 +63,13 @@ export default function ItemCard({
   onWishlistToggle,
   statusBadge,
   endingSoon,
+  endTime,
   viewCount,
+  sellerNickname,
+  price,
 }: Props) {
-  const [sellerNickname, setSellerNickname] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!listing.seller) return;
-    fetch(`/api/auth/user?wallet=${listing.seller}`)
-      .then((r) => r.json())
-      .then((d) => setSellerNickname(d.nickname ?? null))
-      .catch(() => {});
-  }, [listing.seller]);
-
   const sellerLabel = sellerNickname ?? `${listing.seller.slice(0, 6)}...${listing.seller.slice(-4)}`;
+  const showCountdown = (listing.saleType === 1 || listing.saleType === 2) && endTime && endTime > 0n;
 
   return (
     <div className="relative group">
@@ -70,8 +96,9 @@ export default function ItemCard({
           <div className="aspect-square overflow-hidden relative" style={{ background: "rgba(255,255,255,0.03)" }}>
             {listing.imageHash ? (
               <img
-                src={listing.imageHash.startsWith("/") ? listing.imageHash : `https://ipfs.io/ipfs/${listing.imageHash}`}
+                src={ipfsUrl(listing.imageHash)}
                 alt={listing.title}
+                loading="lazy"
                 className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
               />
             ) : (
@@ -96,24 +123,34 @@ export default function ItemCard({
             <h3 className="font-semibold text-sm truncate" style={{ color: "#f0f0f8" }}>
               {listing.title}
             </h3>
-            <p className="text-xs mt-0.5 truncate" style={{ color: "#565670" }}>
-              {listing.description}
-            </p>
 
-            <div className="mt-2.5 flex items-center justify-between gap-1.5">
+            {price != null && price > 0n && (
+              <p className="text-sm font-bold mt-1" style={{ color: "#c4b5fd" }}>
+                {formatBKT(price)}
+              </p>
+            )}
+
+            <div className="mt-2 flex items-center justify-between gap-1.5">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className={`badge ${BADGE[listing.saleType]}`}>{SALE_TYPE_LABEL[listing.saleType]}</span>
                 {statusBadge && <span className={`badge ${statusBadge.className}`}>{statusBadge.label}</span>}
               </div>
-              {viewCount != null && (
-                <span className="flex items-center gap-0.5 text-[10px] flex-shrink-0" style={{ color: "#565670" }}>
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3 h-3">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
-                  </svg>
-                  {viewCount.toLocaleString()}
-                </span>
-              )}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {showCountdown && (
+                  <span className="text-[10px] font-medium">
+                    <MiniCountdown endTime={endTime!} />
+                  </span>
+                )}
+                {viewCount != null && (
+                  <span className="flex items-center gap-0.5 text-[10px]" style={{ color: "#565670" }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3 h-3">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178Z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+                    </svg>
+                    {viewCount.toLocaleString()}
+                  </span>
+                )}
+              </div>
             </div>
 
             <div className="mt-2 pt-2" style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}>
@@ -122,12 +159,8 @@ export default function ItemCard({
                 onClick={(e) => e.stopPropagation()}
                 className="text-[10px] transition-colors truncate block"
                 style={{ color: "#565670" }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.color = "#c4b5fd";
-                }}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLElement).style.color = "#565670";
-                }}
+                onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "#c4b5fd"; }}
+                onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "#565670"; }}
               >
                 {sellerLabel}
               </Link>

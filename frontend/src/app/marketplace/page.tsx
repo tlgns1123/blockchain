@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { parseUnits } from "viem";
 import Link from "next/link";
 import { useListings } from "@/hooks/useMarketplace";
 import { useWishlist } from "@/hooks/useWishlist";
@@ -17,31 +18,74 @@ const FILTER_TABS: { key: SaleType | "all"; label: string }[] = [
   { key: 2, label: SALE_TYPE_LABEL[2] },
 ];
 
-type SortKey = "newest" | "oldest" | "views";
+type SortKey = "newest" | "oldest" | "views" | "price_asc" | "price_desc";
 
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: "newest", label: "최신순" },
   { key: "oldest", label: "오래된순" },
+  { key: "price_asc", label: "가격 낮은순" },
+  { key: "price_desc", label: "가격 높은순" },
   { key: "views", label: "조회순" },
 ];
 
+const PAGE_SIZE = 20;
+
+function parseBkt(val: string): bigint | null {
+  try {
+    const n = parseFloat(val);
+    if (isNaN(n) || n < 0) return null;
+    return parseUnits(String(n), 18);
+  } catch {
+    return null;
+  }
+}
+
 export default function MarketplacePage() {
-  const { data: listings, isLoading } = useListings(0, 100);
+  const [limit, setLimit] = useState(PAGE_SIZE);
+  const { data: listings, isLoading } = useListings(0, limit);
   const { ids: wishlistIds, toggle } = useWishlist();
-  const { stateMap, endTimeMap } = useTradeStates((listings as Listing[] | undefined) ?? []);
+  const { stateMap, endTimeMap, priceMap } = useTradeStates((listings as Listing[] | undefined) ?? []);
   const allIds = ((listings as Listing[] | undefined) ?? []).map((l) => l.id.toString());
   const viewCounts = useViewCounts(allIds);
+  const [sellerNicknames, setSellerNicknames] = useState<Record<string, string>>({});
+  const fetchedWallets = useRef<Set<string>>(new Set());
+
   const [query, setQuery] = useState("");
   const [saleFilter, setSaleFilter] = useState<SaleType | "all">("all");
   const [sort, setSort] = useState<SortKey>("newest");
+  const [minBkt, setMinBkt] = useState("");
+  const [maxBkt, setMaxBkt] = useState("");
+
+  useEffect(() => {
+    const all = (listings as Listing[] | undefined) ?? [];
+    if (all.length === 0) return;
+
+    const newWallets = [...new Set(all.map((l) => l.seller.toLowerCase()))].filter(
+      (w) => !fetchedWallets.current.has(w)
+    );
+    if (newWallets.length === 0) return;
+
+    newWallets.forEach((w) => fetchedWallets.current.add(w));
+    fetch(`/api/auth/users?wallets=${newWallets.join(",")}`)
+      .then((r) => r.json())
+      .then((data: Record<string, string>) =>
+        setSellerNicknames((prev) => ({ ...prev, ...data }))
+      )
+      .catch(() => {});
+  }, [listings]);
 
   const filtered = useMemo(() => {
     let result = (listings as Listing[] | undefined) ?? [];
 
     result = result.filter((l) => {
       if (!l.active) return false;
-      const s = stateMap[l.tradeContract.toLowerCase()];
+      const key = l.tradeContract.toLowerCase();
+      const s = stateMap[key];
       if (s === 2 || s === 3) return false;
+      if ((l.saleType === 1 || l.saleType === 2) && s === 0) {
+        const endTime = endTimeMap[key];
+        if (endTime && endTime > 0n && Number(endTime) <= Math.floor(Date.now() / 1000)) return false;
+      }
       return true;
     });
 
@@ -49,24 +93,42 @@ export default function MarketplacePage() {
 
     if (query.trim()) {
       const q = query.trim().toLowerCase();
-      result = result.filter((l) => l.title.toLowerCase().includes(q) || l.description.toLowerCase().includes(q));
+      result = result.filter(
+        (l) => l.title.toLowerCase().includes(q) || l.description.toLowerCase().includes(q)
+      );
+    }
+
+    const minWei = parseBkt(minBkt);
+    const maxWei = parseBkt(maxBkt);
+    if (minWei !== null || maxWei !== null) {
+      result = result.filter((l) => {
+        const p = priceMap[l.tradeContract.toLowerCase()];
+        if (p == null) return true;
+        if (minWei !== null && p < minWei) return false;
+        if (maxWei !== null && p > maxWei) return false;
+        return true;
+      });
     }
 
     result = [...result].sort((a, b) => {
       if (sort === "newest") return Number(b.id - a.id);
       if (sort === "oldest") return Number(a.id - b.id);
       if (sort === "views") {
-        const va = viewCounts[a.id.toString()] ?? 0;
-        const vb = viewCounts[b.id.toString()] ?? 0;
-        return vb - va;
+        return (viewCounts[b.id.toString()] ?? 0) - (viewCounts[a.id.toString()] ?? 0);
+      }
+      if (sort === "price_asc" || sort === "price_desc") {
+        const pa = priceMap[a.tradeContract.toLowerCase()] ?? 0n;
+        const pb = priceMap[b.tradeContract.toLowerCase()] ?? 0n;
+        return sort === "price_asc" ? (pa < pb ? -1 : pa > pb ? 1 : 0) : pa < pb ? 1 : pa > pb ? -1 : 0;
       }
       return 0;
     });
 
     return result;
-  }, [listings, stateMap, query, saleFilter, sort, viewCounts]);
+  }, [listings, stateMap, endTimeMap, priceMap, query, saleFilter, sort, viewCounts, minBkt, maxBkt]);
 
-  const isSearching = query.trim() !== "" || saleFilter !== "all";
+  const isSearching = query.trim() !== "" || saleFilter !== "all" || minBkt !== "" || maxBkt !== "";
+  const hasMore = ((listings as Listing[] | undefined) ?? []).length >= limit;
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -102,6 +164,38 @@ export default function MarketplacePage() {
           onChange={(e) => setQuery(e.target.value)}
           className="input-base pl-9 pr-4"
         />
+      </div>
+
+      <div className="flex gap-2 mb-3">
+        <div className="relative flex-1">
+          <input
+            type="number"
+            min="0"
+            placeholder="최소 가격 (BKT)"
+            value={minBkt}
+            onChange={(e) => setMinBkt(e.target.value)}
+            className="input-base w-full text-sm"
+          />
+        </div>
+        <div className="relative flex-1">
+          <input
+            type="number"
+            min="0"
+            placeholder="최대 가격 (BKT)"
+            value={maxBkt}
+            onChange={(e) => setMaxBkt(e.target.value)}
+            className="input-base w-full text-sm"
+          />
+        </div>
+        {(minBkt || maxBkt) && (
+          <button
+            onClick={() => { setMinBkt(""); setMaxBkt(""); }}
+            className="px-3 py-1.5 rounded-lg text-xs transition-all flex-shrink-0"
+            style={{ background: "rgba(239,68,68,0.12)", color: "#fca5a5", border: "1px solid rgba(239,68,68,0.2)" }}
+          >
+            초기화
+          </button>
+        )}
       </div>
 
       <div className="flex items-center justify-between gap-3 mb-5">
@@ -147,16 +241,43 @@ export default function MarketplacePage() {
         </div>
       ) : (
         <>
-          {isSearching && <p className="text-xs text-gray-400 mb-3">검색 결과 {filtered.filter((l) => l.active).length}개</p>}
+          {isSearching && (
+            <p className="text-xs text-gray-400 mb-3">검색 결과 {filtered.length}개</p>
+          )}
           <ItemGrid
             listings={filtered}
             stateMap={stateMap}
             endTimeMap={endTimeMap}
+            priceMap={priceMap}
             viewCounts={viewCounts}
+            sellerNicknames={sellerNicknames}
             wishlisted={wishlistIds}
             onWishlistToggle={toggle}
             emptyMessage={isSearching ? "검색 결과가 없습니다." : undefined}
           />
+          {hasMore && !isSearching && (
+            <div className="mt-8 text-center">
+              <button
+                onClick={() => setLimit((prev) => prev + PAGE_SIZE)}
+                className="px-6 py-2.5 rounded-xl text-sm font-medium transition-all"
+                style={{
+                  background: "rgba(255,255,255,0.06)",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  color: "#a0a0bc",
+                }}
+                onMouseEnter={(e) => {
+                  (e.currentTarget as HTMLElement).style.borderColor = "rgba(139,92,246,0.4)";
+                  (e.currentTarget as HTMLElement).style.color = "#c4b5fd";
+                }}
+                onMouseLeave={(e) => {
+                  (e.currentTarget as HTMLElement).style.borderColor = "rgba(255,255,255,0.1)";
+                  (e.currentTarget as HTMLElement).style.color = "#a0a0bc";
+                }}
+              >
+                더 보기
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>

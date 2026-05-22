@@ -11,10 +11,12 @@ export async function getAuthUser(req: NextRequest): Promise<User | null> {
   return (await findById(payload.userId)) ?? null;
 }
 
+const SECURE = process.env.NODE_ENV === "production" ? "; Secure" : "";
+
 export function setCookieHeader(token: string) {
-  return `auth_token=${token}; HttpOnly; Path=/; Max-Age=${7 * 24 * 3600}; SameSite=Lax`;
+  return `auth_token=${token}; HttpOnly; Path=/; Max-Age=${7 * 24 * 3600}; SameSite=Lax${SECURE}`;
 }
 
 export function clearCookieHeader() {
-  return `auth_token=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax`;
+  return `auth_token=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax${SECURE}`;
 }

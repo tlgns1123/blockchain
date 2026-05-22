@@ -22,7 +22,7 @@ export function useReviews(address?: string) {
   const [data, setData] = useState<ReviewSummary>({ reviews: [], avg: null, total: 0 });
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!address) return;
     setLoading(true);
     fetch(`/api/review?address=${address.toLowerCase()}`)
@@ -32,7 +32,9 @@ export function useReviews(address?: string) {
       .finally(() => setLoading(false));
   }, [address]);
 
-  return { ...data, loading };
+  useEffect(() => { load(); }, [load]);
+
+  return { ...data, loading, refetch: load };
 }
 
 export function useSubmitReview() {

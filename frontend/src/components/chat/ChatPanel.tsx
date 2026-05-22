@@ -35,6 +35,7 @@ export default function ChatPanel({ listingId, sellerAddress, sellerNickname, is
     if (!open || !peerAddr) return;
     const t = setTimeout(() => markRead(listingId, peerAddr), 1500);
     return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, listingId, peerAddr]);
 
   // 새 메시지 시 스크롤

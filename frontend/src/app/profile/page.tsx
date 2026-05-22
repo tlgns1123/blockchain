@@ -10,6 +10,7 @@ import { useWishlist } from "@/hooks/useWishlist";
 import { useBoughtListings } from "@/hooks/useBoughtListings";
 import { useTradeStates } from "@/hooks/useTradeStates";
 import { truncateAddress } from "@/lib/utils";
+import { ipfsUrl } from "@/lib/ipfs";
 import { SALE_TYPE_LABEL } from "@/types";
 import type { Listing, SaleType } from "@/types";
 import NicknameField from "@/components/common/NicknameField";
@@ -24,9 +25,16 @@ const SALE_BADGE: Record<SaleType, string> = {
 
 type Tab = "selling" | "buying" | "wishlist" | "settings";
 
-const CONTRACT_STATE_LABEL: Record<number, { label: string; badge: string }> = {
+const DIRECT_STATE_LABEL: Record<number, { label: string; badge: string }> = {
   0: { label: "판매중", badge: "bg-emerald-500/15 text-emerald-400" },
   1: { label: "예약중", badge: "bg-amber-500/15 text-amber-400" },
+  2: { label: "거래완료", badge: "bg-gray-200/15 text-gray-400" },
+  3: { label: "취소됨", badge: "bg-red-500/15 text-red-400" },
+};
+
+const AUCTION_STATE_LABEL: Record<number, { label: string; badge: string }> = {
+  0: { label: "경매중", badge: "bg-brand-500/15 text-brand-400" },
+  1: { label: "정산대기", badge: "bg-amber-500/15 text-amber-400" },
   2: { label: "거래완료", badge: "bg-gray-200/15 text-gray-400" },
   3: { label: "취소됨", badge: "bg-red-500/15 text-red-400" },
 };
@@ -36,18 +44,28 @@ function SaleRow({
   onDelist,
   delisting,
   contractState,
+  endTime,
 }: {
   listing: Listing;
   onDelist: (id: bigint) => void;
   delisting: boolean;
   contractState?: number;
+  endTime?: bigint;
 }) {
-  const stateInfo =
-    contractState !== undefined
-      ? CONTRACT_STATE_LABEL[contractState] ?? CONTRACT_STATE_LABEL[0]
-      : listing.active
+  const isAuction = listing.saleType === 1 || listing.saleType === 2;
+  const labelMap = isAuction ? AUCTION_STATE_LABEL : DIRECT_STATE_LABEL;
+
+  const stateInfo = (() => {
+    if (contractState === undefined) {
+      return listing.active
         ? { label: "판매중", badge: "bg-emerald-500/15 text-emerald-400" }
         : { label: "종료", badge: "bg-gray-200/15 text-gray-400" };
+    }
+    if (isAuction && contractState === 0 && endTime && endTime > 0n && Number(endTime) <= Math.floor(Date.now() / 1000)) {
+      return { label: "경매종료", badge: "bg-red-500/15 text-red-400" };
+    }
+    return labelMap[contractState] ?? labelMap[0];
+  })();
 
   return (
     <div className="flex items-center hover:bg-gray-50 transition rounded-xl">
@@ -55,7 +73,8 @@ function SaleRow({
         <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center text-xl flex-shrink-0 overflow-hidden">
           {listing.imageHash ? (
             <img
-              src={listing.imageHash.startsWith("/") ? listing.imageHash : `https://ipfs.io/ipfs/${listing.imageHash}`}
+              src={ipfsUrl(listing.imageHash)}
+              loading="lazy"
               alt={listing.title}
               className="w-full h-full object-cover rounded-xl"
             />
@@ -117,7 +136,8 @@ function BuyRow({ listing, contractState }: { listing: Listing; contractState?: 
         <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center text-xl flex-shrink-0 overflow-hidden">
           {listing.imageHash ? (
             <img
-              src={listing.imageHash.startsWith("/") ? listing.imageHash : `https://ipfs.io/ipfs/${listing.imageHash}`}
+              src={ipfsUrl(listing.imageHash)}
+              loading="lazy"
               alt={listing.title}
               className="w-full h-full object-cover rounded-xl"
             />
@@ -342,7 +362,7 @@ export default function ProfilePage() {
   const myListingsForState =
     (allListings as Listing[] | undefined)?.filter((listing) => listing.seller?.toLowerCase() === userAddr?.toLowerCase()) ?? [];
 
-  const { stateMap: saleStateMap } = useTradeStates(myListingsForState);
+  const { stateMap: saleStateMap, endTimeMap: saleEndTimeMap } = useTradeStates(myListingsForState);
   const { stateMap: buyStateMap } = useTradeStates(bought);
 
   if (isLoading) {
@@ -469,6 +489,7 @@ export default function ProfilePage() {
                   listing={listing}
                   delisting={delisting}
                   contractState={saleStateMap[listing.tradeContract.toLowerCase()]}
+                  endTime={saleEndTimeMap[listing.tradeContract.toLowerCase()]}
                   onDelist={async (id) => {
                     await delistItem(id);
                     refetchListings();

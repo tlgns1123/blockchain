@@ -17,6 +17,8 @@ import TxButton from "@/components/common/TxButton";
 import ReviewModal from "./ReviewModal";
 import { formatBKT, truncateAddress } from "@/lib/utils";
 import { parseTxError } from "@/lib/txError";
+import { showToast } from "@/lib/toast";
+import { useBktBalance } from "@/hooks/useToken";
 
 const STATE_LABEL = ["판매중", "구매 확정 대기", "거래 완료", "취소됨"];
 const STATE_COLOR = [
@@ -38,16 +40,19 @@ export default function DirectSalePanel({
   contractAddress,
   listingId,
   listingTitle,
+  onReviewDone,
 }: {
   contractAddress: `0x${string}`;
   listingId?: bigint;
   listingTitle?: string;
+  onReviewDone?: () => void;
 }) {
   const { address } = useAccount();
   const { user } = useAuth();
   const publicClient = usePublicClient();
   const { price, buyer, seller, state } = useDirectSaleState(contractAddress);
   const { data: allowanceRaw, refetch: refetchAllowance } = useBktAllowance(address, contractAddress);
+  const { data: bktBalanceRaw } = useBktBalance(address);
   const { approve } = useApproveBkt(contractAddress);
   const { purchase } = usePurchase(contractAddress);
   const { confirm } = useConfirmReceivedDirect(contractAddress);
@@ -63,8 +68,10 @@ export default function DirectSalePanel({
   const buyerAddr = buyer.data as `0x${string}`;
   const sellerAddr = seller.data as `0x${string}`;
   const allowance = (allowanceRaw as bigint) ?? 0n;
+  const bktBalance = (bktBalanceRaw as bigint) ?? 0n;
   const isBuyer = address?.toLowerCase() === buyerAddr?.toLowerCase();
   const isSeller = address?.toLowerCase() === sellerAddr?.toLowerCase();
+  const hasBkt = bktBalance >= priceRaw;
   const linkedWallet = user?.walletAddress?.toLowerCase();
   const isWalletMismatch = !!linkedWallet && !!address && linkedWallet !== address.toLowerCase();
 
@@ -83,13 +90,17 @@ export default function DirectSalePanel({
       const hash = await cancel();
       await publicClient!.waitForTransactionReceipt({ hash });
 
-      if (listingId != null) {
-        await delistItem(listingId);
-      }
+      if (listingId != null) await delistItem(listingId);
 
       refetchAll();
+      showToast("판매가 취소되었습니다.", "info");
+
+      if (buyerAddr && buyerAddr !== "0x0000000000000000000000000000000000000000") {
+        await sendNotification(buyerAddr, "cancel", listingId?.toString() ?? "", listingTitle ?? "", `판매자가 판매를 취소했습니다${listingTitle ? ` · ${listingTitle}` : ""}.`);
+      }
     } catch (error) {
       setTxError(parseTxError(error));
+      showToast("취소 처리 중 오류가 발생했습니다.", "error");
     } finally {
       setProcessing(false);
     }
@@ -117,6 +128,7 @@ export default function DirectSalePanel({
       const purchaseHash = await purchase(gas);
       await publicClient!.waitForTransactionReceipt({ hash: purchaseHash });
       refetchAll();
+      showToast("구매가 완료되었습니다!", "success");
 
       if (sellerAddr) {
         await sendNotification(
@@ -129,6 +141,7 @@ export default function DirectSalePanel({
       }
     } catch (error) {
       setTxError(parseTxError(error));
+      showToast("구매 처리 중 오류가 발생했습니다.", "error");
     } finally {
       setProcessing(false);
     }
@@ -143,6 +156,7 @@ export default function DirectSalePanel({
       await publicClient!.waitForTransactionReceipt({ hash });
       refetchAll();
       setShowReview(true);
+      showToast("수령 확인 완료! 리뷰를 남겨 주세요.", "success");
 
       if (sellerAddr) {
         await sendNotification(
@@ -193,12 +207,20 @@ export default function DirectSalePanel({
           <TxButton className="w-full" variant="secondary" label="판매 취소" loading={processing} onClick={handleCancel} disabled={isWalletMismatch} />
         )}
 
+        {currentState === 0 && !isSeller && address && !hasBkt && (
+          <div className="rounded-xl px-4 py-3 text-xs" style={{ background: "rgba(251,191,36,0.1)", color: "#fbbf24" }}>
+            BKT 잔액이 부족합니다.{" "}
+            <a href="/exchange" className="underline font-semibold" style={{ color: "#f59e0b" }}>
+              교환소에서 충전하기 →
+            </a>
+          </div>
+        )}
         {currentState === 0 && !isSeller && (
           <TxButton
             className="w-full"
             label={`${formatBKT(priceRaw)}로 바로 구매`}
             loading={processing}
-            disabled={!address || isWalletMismatch}
+            disabled={!address || isWalletMismatch || !hasBkt}
             onClick={handlePurchase}
           />
         )}
@@ -221,6 +243,7 @@ export default function DirectSalePanel({
           reviewee={isBuyer ? sellerAddr : buyerAddr}
           role={isBuyer ? "buyer" : "seller"}
           onClose={() => setShowReview(false)}
+          onDone={onReviewDone}
         />
       )}
     </>

@@ -7,7 +7,9 @@ interface Props {
   listings: Listing[];
   stateMap?: Record<string, number>;
   endTimeMap?: Record<string, bigint>;
+  priceMap?: Record<string, bigint>;
   viewCounts?: Record<string, number>;
+  sellerNicknames?: Record<string, string>;
   wishlisted?: string[];
   onWishlistToggle?: (id: string) => void;
   emptyMessage?: string;
@@ -17,7 +19,9 @@ export default function ItemGrid({
   listings,
   stateMap,
   endTimeMap,
+  priceMap,
   viewCounts,
+  sellerNicknames,
   wishlisted,
   onWishlistToggle,
   emptyMessage,
@@ -46,8 +50,8 @@ export default function ItemGrid({
       {active.map((l) => {
         const key = l.tradeContract.toLowerCase();
         const state = stateMap?.[key];
-        const statusBadge = state !== undefined ? getStatusBadge(l.saleType, state) : null;
         const endTime = endTimeMap?.[key];
+        const statusBadge = state !== undefined ? getStatusBadge(l.saleType, state, endTime) : null;
 
         return (
           <ItemCard
@@ -55,7 +59,10 @@ export default function ItemGrid({
             listing={l}
             statusBadge={statusBadge}
             endingSoon={isEndingSoon(endTime)}
+            endTime={endTime}
+            price={priceMap?.[key]}
             viewCount={viewCounts?.[l.id.toString()]}
+            sellerNickname={sellerNicknames?.[l.seller.toLowerCase()]}
             wishlisted={wishlisted?.includes(l.id.toString())}
             onWishlistToggle={onWishlistToggle}
           />

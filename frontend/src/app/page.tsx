@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import HomeStats from "@/components/common/HomeStats";
 
 const FEATURES = [
   {
@@ -32,11 +33,6 @@ const FEATURES = [
   },
 ];
 
-const STATS = [
-  { value: "2.5%", label: "거래 수수료" },
-  { value: "3가지", label: "거래 방식" },
-  { value: "Sepolia", label: "테스트넷" },
-];
 
 export default function HomePage() {
   return (
@@ -95,18 +91,7 @@ export default function HomePage() {
           </Link>
         </div>
 
-        <div className="flex items-center justify-center gap-8 mt-14 pt-10" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-          {STATS.map((s) => (
-            <div key={s.label} className="text-center">
-              <div className="text-2xl font-black mb-0.5" style={{ color: "#c4b5fd" }}>
-                {s.value}
-              </div>
-              <div className="text-xs" style={{ color: "#565670" }}>
-                {s.label}
-              </div>
-            </div>
-          ))}
-        </div>
+        <HomeStats />
       </div>
 
       <div className="max-w-5xl mx-auto w-full grid grid-cols-1 sm:grid-cols-3 gap-4 pb-12">

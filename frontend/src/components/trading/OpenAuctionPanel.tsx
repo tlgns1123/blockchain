@@ -21,8 +21,10 @@ import BlockTokenABI from "@/abi/BlockToken.json";
 import OpenAuctionABI from "@/abi/OpenAuction.json";
 import TxButton from "@/components/common/TxButton";
 import CountdownTimer from "@/components/common/CountdownTimer";
+import ReviewModal from "@/components/trading/ReviewModal";
 import { formatBKT, truncateAddress } from "@/lib/utils";
 import { parseTxError } from "@/lib/txError";
+import { showToast } from "@/lib/toast";
 
 async function sendNotification(to: string, type: string, listingId: string, listingTitle: string, message: string) {
   await fetch("/api/notifications", {
@@ -44,10 +46,12 @@ export default function OpenAuctionPanel({
   contractAddress,
   listingId,
   listingTitle,
+  onReviewDone,
 }: {
   contractAddress: `0x${string}`;
   listingId?: bigint;
   listingTitle?: string;
+  onReviewDone?: () => void;
 }) {
   const { address } = useAccount();
   const { user } = useAuth();
@@ -66,6 +70,7 @@ export default function OpenAuctionPanel({
 
   const [bidInput, setBidInput] = useState("");
   const [showHistory, setShowHistory] = useState(false);
+  const [showReview, setShowReview] = useState(false);
   const [txError, setTxError] = useState("");
   const [processing, setProcessing] = useState(false);
 
@@ -137,6 +142,7 @@ export default function OpenAuctionPanel({
 
       setBidInput("");
       refetchAll();
+      showToast(`${formatBKT(bidWei)} 입찰 완료!`, "success");
 
       if (sellerAddr) {
         await sendNotification(
@@ -162,8 +168,20 @@ export default function OpenAuctionPanel({
       const hash = await endAuction();
       await publicClient!.waitForTransactionReceipt({ hash });
       refetchAll();
+      showToast("경매가 종료되었습니다.", "info");
+
+      if (highBidder && highBidder !== "0x0000000000000000000000000000000000000000") {
+        await sendNotification(
+          highBidder,
+          "auction_end",
+          listingId?.toString() ?? "",
+          listingTitle ?? "",
+          `경매가 종료되었습니다. 낙찰가: ${formatBKT(highBid)}${listingTitle ? ` · ${listingTitle}` : ""}`
+        );
+      }
     } catch (error) {
       setTxError(parseTxError(error));
+      showToast("경매 종료 처리 중 오류가 발생했습니다.", "error");
     } finally {
       setProcessing(false);
     }
@@ -192,8 +210,21 @@ export default function OpenAuctionPanel({
       const hash = await confirm();
       await publicClient!.waitForTransactionReceipt({ hash });
       refetchAll();
+      setShowReview(true);
+      showToast("수령 확인 완료! 리뷰를 남겨 주세요.", "success");
+
+      if (sellerAddr) {
+        await sendNotification(
+          sellerAddr,
+          "confirm",
+          listingId?.toString() ?? "",
+          listingTitle ?? "",
+          `낙찰자가 수령 완료를 확인했습니다${listingTitle ? ` · ${listingTitle}` : ""}.`
+        );
+      }
     } catch (error) {
       setTxError(parseTxError(error));
+      showToast("처리 중 오류가 발생했습니다.", "error");
     } finally {
       setProcessing(false);
     }
@@ -209,6 +240,16 @@ export default function OpenAuctionPanel({
     isWalletMismatch;
 
   return (
+    <>
+    {showReview && listingId != null && (
+      <ReviewModal
+        listingId={listingId.toString()}
+        reviewee={sellerAddr}
+        role="buyer"
+        onClose={() => setShowReview(false)}
+        onDone={onReviewDone}
+      />
+    )}
     <div className="card p-6 space-y-5">
       <div className="flex items-start justify-between">
         <div>
@@ -360,5 +401,6 @@ export default function OpenAuctionPanel({
 
       {auctionState === 2 && <p className="text-center text-sm text-gray-400 py-2">거래가 완료되었습니다.</p>}
     </div>
+    </>
   );
 }

@@ -4,14 +4,14 @@ import { useState, useEffect } from "react";
 export function useViewCounts(listingIds: string[]) {
   const [counts, setCounts] = useState<Record<string, number>>({});
 
+  const idsKey = listingIds.join(",");
   useEffect(() => {
-    if (!listingIds.length) return;
-    const ids = listingIds.join(",");
-    fetch(`/api/views?listingIds=${ids}`)
+    if (!idsKey) return;
+    fetch(`/api/views?listingIds=${idsKey}`)
       .then((r) => r.json())
       .then(setCounts)
       .catch(() => {});
-  }, [listingIds.join(",")]);
+  }, [idsKey]);
 
   return counts;
 }

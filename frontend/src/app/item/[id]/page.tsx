@@ -8,6 +8,8 @@ import { useListing } from "@/hooks/useMarketplace";
 import { useIncrementView, useViewCount } from "@/hooks/useViewCount";
 import { useReviews } from "@/hooks/useReview";
 import { truncateAddress } from "@/lib/utils";
+import { ipfsUrl } from "@/lib/ipfs";
+import { showToast } from "@/lib/toast";
 import DirectSalePanel from "@/components/trading/DirectSalePanel";
 import OpenAuctionPanel from "@/components/trading/OpenAuctionPanel";
 import BlindAuctionPanel from "@/components/trading/BlindAuctionPanel";
@@ -163,7 +165,7 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
       .catch(() => {});
   }, [item?.seller]);
 
-  const { avg: sellerAvg, total: sellerTotal } = useReviews(item?.seller);
+  const { avg: sellerAvg, total: sellerTotal, refetch: refetchReviews } = useReviews(item?.seller);
 
   if (isLoading) {
     return (
@@ -198,11 +200,29 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
           ← 목록
         </Link>
 
-        {user && !isSeller && (
-          <button onClick={() => setShowReport(true)} className="text-xs text-gray-400 hover:text-red-500 transition flex items-center gap-1">
-            신고
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              navigator.clipboard.writeText(window.location.href);
+              showToast("링크가 복사되었습니다.", "info");
+            }}
+            className="text-xs flex items-center gap-1 transition-colors"
+            style={{ color: "#565670" }}
+            onMouseEnter={(e) => { (e.currentTarget as HTMLElement).style.color = "#a0a0bc"; }}
+            onMouseLeave={(e) => { (e.currentTarget as HTMLElement).style.color = "#565670"; }}
+            title="링크 복사"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
+            </svg>
+            공유
           </button>
-        )}
+          {user && !isSeller && (
+            <button onClick={() => setShowReport(true)} className="text-xs text-gray-400 hover:text-red-500 transition flex items-center gap-1">
+              신고
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
@@ -210,7 +230,8 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
           <div className="card aspect-square overflow-hidden flex items-center justify-center bg-gray-50">
             {allImages.length > 0 ? (
               <img
-                src={allImages[selectedImg].startsWith("/") ? allImages[selectedImg] : `https://ipfs.io/ipfs/${allImages[selectedImg]}`}
+                src={ipfsUrl(allImages[selectedImg])}
+                loading="lazy"
                 alt={item.title}
                 className="w-full h-full object-cover"
               />
@@ -232,7 +253,7 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
                     selectedImg === index ? "border-brand-500" : "border-transparent"
                   }`}
                 >
-                  <img src={src.startsWith("/") ? src : `https://ipfs.io/ipfs/${src}`} alt={`${index + 1}`} className="w-full h-full object-cover" />
+                  <img src={ipfsUrl(src)} alt={`${index + 1}`} loading="lazy" className="w-full h-full object-cover" />
                 </button>
               ))}
             </div>
@@ -309,9 +330,9 @@ export default function ItemDetailPage({ params }: { params: { id: string } }) {
         )}
 
         <div className={`space-y-4 ${isGuest ? "pointer-events-none select-none" : ""}`}>
-          {saleType === 0 && <DirectSalePanel contractAddress={item.tradeContract} listingId={listingId} listingTitle={item.title} />}
-          {saleType === 1 && <OpenAuctionPanel contractAddress={item.tradeContract} listingId={listingId} listingTitle={item.title} />}
-          {saleType === 2 && <BlindAuctionPanel contractAddress={item.tradeContract} listingId={listingId} listingTitle={item.title} />}
+          {saleType === 0 && <DirectSalePanel contractAddress={item.tradeContract} listingId={listingId} listingTitle={item.title} onReviewDone={refetchReviews} />}
+          {saleType === 1 && <OpenAuctionPanel contractAddress={item.tradeContract} listingId={listingId} listingTitle={item.title} onReviewDone={refetchReviews} />}
+          {saleType === 2 && <BlindAuctionPanel contractAddress={item.tradeContract} listingId={listingId} listingTitle={item.title} onReviewDone={refetchReviews} />}
         </div>
       </div>
 

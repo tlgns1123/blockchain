@@ -12,6 +12,7 @@ import { useTradeFactory } from "@/hooks/useTradeFactory";
 import MarketplaceABI from "@/abi/Marketplace.json";
 import type { SaleType } from "@/types";
 import { parseTxError } from "@/lib/txError";
+import { ipfsUrl } from "@/lib/ipfs";
 
 const PENDING_EXTRA_IMAGES_KEY = "bk_pending_extra_images";
 
@@ -164,7 +165,23 @@ export default function SellPage() {
       const formData = new FormData();
       formData.append("file", file);
 
-      const response = await fetch("/api/upload", { method: "POST", body: formData });
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000);
+
+      let response: Response;
+      try {
+        response = await fetch("/api/upload", { method: "POST", body: formData, signal: controller.signal });
+      } catch (err: any) {
+        if (err?.name === "AbortError") {
+          setError("이미지 업로드 시간이 초과되었습니다. 이미지 없이 등록하거나 다시 시도해 주세요.");
+        } else {
+          setError("이미지 업로드에 실패했습니다. 네트워크를 확인해 주세요.");
+        }
+        return;
+      } finally {
+        clearTimeout(timeout);
+      }
+
       const data = await response.json();
 
       if (!response.ok) {
@@ -349,7 +366,7 @@ export default function SellPage() {
                 {images.map((src, index) => (
                   <div key={index} className="relative aspect-square rounded-xl overflow-hidden bg-gray-100 group">
                     <img
-                      src={src.startsWith("/") ? src : `https://ipfs.io/ipfs/${src}`}
+                      src={ipfsUrl(src)}
                       alt={`상품 이미지 ${index + 1}`}
                       className="w-full h-full object-cover"
                     />
@@ -550,7 +567,7 @@ export default function SellPage() {
           <p>거래 완료 시 낙찰가 또는 판매가의 2.5%가 플랫폼 수수료로 차감됩니다.</p>
         </div>
 
-        <button className="btn-primary w-full text-sm py-3" disabled={!canSubmit || isPending} onClick={handleSubmit}>
+        <button className="btn-primary w-full text-sm py-3" disabled={!canSubmit || isPending || imageUploading} onClick={handleSubmit}>
           {isPending ? "처리 중..." : "마켓플레이스에 등록하기"}
         </button>
       </div>

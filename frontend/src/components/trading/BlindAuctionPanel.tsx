@@ -20,8 +20,10 @@ import BlockTokenABI from "@/abi/BlockToken.json";
 import BlindAuctionABI from "@/abi/BlindAuction.json";
 import TxButton from "@/components/common/TxButton";
 import CountdownTimer from "@/components/common/CountdownTimer";
+import ReviewModal from "@/components/trading/ReviewModal";
 import { formatBKT, truncateAddress } from "@/lib/utils";
 import { parseTxError } from "@/lib/txError";
+import { showToast } from "@/lib/toast";
 
 const STORAGE_KEY = (address: string) => `bk_blind_commit_${address.toLowerCase()}`;
 
@@ -51,10 +53,12 @@ export default function BlindAuctionPanel({
   contractAddress,
   listingId,
   listingTitle,
+  onReviewDone,
 }: {
   contractAddress: `0x${string}`;
   listingId?: bigint;
   listingTitle?: string;
+  onReviewDone?: () => void;
 }) {
   const { address } = useAccount();
   const { user } = useAuth();
@@ -75,6 +79,7 @@ export default function BlindAuctionPanel({
   const [revealBid, setRevealBid] = useState("");
   const [revealSecret, setRevealSecret] = useState("");
   const [savedNotice, setSavedNotice] = useState("");
+  const [showReview, setShowReview] = useState(false);
   const [txError, setTxError] = useState("");
   const [processing, setProcessing] = useState(false);
 
@@ -165,6 +170,7 @@ export default function BlindAuctionPanel({
       localStorage.setItem(STORAGE_KEY(contractAddress), JSON.stringify(saved));
       setSavedNotice("입찰 정보가 브라우저에 저장되었습니다. 공개 단계에서 자동으로 불러옵니다.");
       refetchAll();
+      showToast("입찰이 제출되었습니다.", "success");
 
       if (sellerAddr) {
         await sendNotification(
@@ -194,8 +200,10 @@ export default function BlindAuctionPanel({
       const revealHash = await reveal(revealBidWei, `0x${Buffer.from(padded).toString("hex")}` as `0x${string}`);
       await publicClient!.waitForTransactionReceipt({ hash: revealHash });
       refetchAll();
+      showToast("입찰이 공개되었습니다.", "success");
     } catch (error) {
       setTxError(parseTxError(error));
+      showToast("공개 처리 중 오류가 발생했습니다.", "error");
     } finally {
       setProcessing(false);
     }
@@ -209,8 +217,10 @@ export default function BlindAuctionPanel({
       const hash = await finalize();
       await publicClient!.waitForTransactionReceipt({ hash });
       refetchAll();
+      showToast("낙찰이 확정되었습니다.", "info");
     } catch (error) {
       setTxError(parseTxError(error));
+      showToast("낙찰 확정 중 오류가 발생했습니다.", "error");
     } finally {
       setProcessing(false);
     }
@@ -225,6 +235,18 @@ export default function BlindAuctionPanel({
       await publicClient!.waitForTransactionReceipt({ hash });
       localStorage.removeItem(STORAGE_KEY(contractAddress));
       refetchAll();
+      setShowReview(true);
+      showToast("수령 확인 완료! 리뷰를 남겨 주세요.", "success");
+
+      if (sellerAddr) {
+        await sendNotification(
+          sellerAddr,
+          "confirm",
+          listingId?.toString() ?? "",
+          listingTitle ?? "",
+          `낙찰자가 수령 완료를 확인했습니다${listingTitle ? ` · ${listingTitle}` : ""}.`
+        );
+      }
     } catch (error) {
       setTxError(parseTxError(error));
     } finally {
@@ -243,7 +265,33 @@ export default function BlindAuctionPanel({
     depositWei < bidWei ||
     isWalletMismatch;
 
+  const hasStoredCommit = typeof window !== "undefined" && !!localStorage.getItem(STORAGE_KEY(contractAddress));
+
   return (
+    <>
+    {showReview && listingId != null && (
+      <ReviewModal
+        listingId={listingId.toString()}
+        reviewee={sellerAddr}
+        role="buyer"
+        onClose={() => setShowReview(false)}
+        onDone={onReviewDone}
+      />
+    )}
+    {inReveal && hasStoredCommit && (
+      <div
+        className="rounded-2xl px-4 py-4 mb-2 flex items-start gap-3"
+        style={{ background: "rgba(251,191,36,0.12)", border: "1px solid rgba(251,191,36,0.3)" }}
+      >
+        <span className="text-xl flex-shrink-0">⚠️</span>
+        <div>
+          <p className="text-sm font-bold" style={{ color: "#fbbf24" }}>입찰 공개 단계입니다!</p>
+          <p className="text-xs mt-0.5 leading-relaxed" style={{ color: "#d97706" }}>
+            지금 입찰가와 비밀값을 공개하지 않으면 보증금을 돌려받지 못합니다. 아래 공개 단계 폼에 입력 후 즉시 공개해 주세요.
+          </p>
+        </div>
+      </div>
+    )}
     <div className="card p-6 space-y-5">
       <div className="flex items-center justify-between">
         <div>
@@ -389,5 +437,6 @@ export default function BlindAuctionPanel({
 
       {auctionState === 2 && <p className="text-center text-sm text-gray-400 py-2">거래가 완료되었습니다.</p>}
     </div>
+    </>
   );
 }

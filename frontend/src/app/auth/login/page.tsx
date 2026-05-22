@@ -36,6 +36,7 @@ function LoginContent() {
       autoSignRef.current = false;
       void handleWalletVerify();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConnected]);
 
   useEffect(() => {
@@ -45,6 +46,7 @@ function LoginContent() {
       setError("");
       void handleWalletVerify();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [address, step, pendingWallet, isLinking]);
 
   const handleCredentials = async (event: React.FormEvent) => {
