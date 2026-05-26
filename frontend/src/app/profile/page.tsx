@@ -351,7 +351,7 @@ export default function ProfilePage() {
 
   const { data: allListings, isLoading: listingsLoading, refetch: refetchListings } = useListings(0, 100);
   const { delistItem, isPending: delisting } = useDelistItem();
-  const { ids: wishlistIds, toggle: toggleWishlist, isWishlisted } = useWishlist();
+  const { toggle: toggleWishlist, isWishlisted } = useWishlist();
   const userAddr = user?.walletAddress ?? address;
 
   const { bought, isLoading: buyingLoading } = useBoughtListings(
@@ -362,8 +362,12 @@ export default function ProfilePage() {
   const myListingsForState =
     (allListings as Listing[] | undefined)?.filter((listing) => listing.seller?.toLowerCase() === userAddr?.toLowerCase()) ?? [];
 
+  const wishlistRawListings =
+    (allListings as Listing[] | undefined)?.filter((listing) => isWishlisted(listing.id.toString())) ?? [];
+
   const { stateMap: saleStateMap, endTimeMap: saleEndTimeMap } = useTradeStates(myListingsForState);
   const { stateMap: buyStateMap } = useTradeStates(bought);
+  const { stateMap: wishStateMap } = useTradeStates(wishlistRawListings);
 
   if (isLoading) {
     return (
@@ -391,13 +395,16 @@ export default function ProfilePage() {
   const myListings =
     (allListings as Listing[] | undefined)?.filter((listing) => listing.seller?.toLowerCase() === userAddr?.toLowerCase()) ?? [];
 
-  const wishlistedListings =
-    (allListings as Listing[] | undefined)?.filter((listing) => isWishlisted(listing.id.toString())) ?? [];
+  const activeWishlistedListings = wishlistRawListings.filter((l) => {
+    if (!l.active) return false;
+    const s = wishStateMap[l.tradeContract.toLowerCase()];
+    return s !== 2 && s !== 3;
+  });
 
   const TABS: { key: Tab; label: string; count: number | null }[] = [
     { key: "selling", label: "판매 내역", count: myListings.length },
     { key: "buying", label: "구매 내역", count: bought.length },
-    { key: "wishlist", label: "찜 목록", count: wishlistIds.length },
+    { key: "wishlist", label: "찜 목록", count: activeWishlistedListings.length },
     { key: "settings", label: "설정", count: null },
   ];
 
@@ -519,7 +526,7 @@ export default function ProfilePage() {
           ))}
 
         {tab === "wishlist" &&
-          (wishlistedListings.length === 0 ? (
+          (activeWishlistedListings.length === 0 ? (
             <div className="py-16 text-center">
               <div className="text-4xl mb-3">💜</div>
               <p className="text-sm text-gray-400">찜한 상품이 없어요.</p>
@@ -527,7 +534,7 @@ export default function ProfilePage() {
             </div>
           ) : (
             <div className="p-4 grid grid-cols-2 sm:grid-cols-3 gap-3">
-              {wishlistedListings.map((listing) => (
+              {activeWishlistedListings.map((listing) => (
                 <ItemCard key={String(listing.id)} listing={listing} wishlisted={true} onWishlistToggle={toggleWishlist} />
               ))}
             </div>

@@ -25,7 +25,7 @@ export function useTradeStates(listings: Listing[]) {
     functionName: l.saleType === 0 ? "price" : "reservePrice",
   }));
 
-  const { data: stateData } = useReadContracts({
+  const { data: stateData, isLoading: stateLoading } = useReadContracts({
     contracts: stateContracts as any,
     query: { enabled: listings.length > 0 },
   });
@@ -42,9 +42,16 @@ export function useTradeStates(listings: Listing[]) {
 
   const stateMap: Record<string, number> = {};
   listings.forEach((l, i) => {
-    const val = stateData?.[i]?.result;
-    stateMap[l.tradeContract.toLowerCase()] =
-      typeof val === "number" ? val : typeof val === "bigint" ? Number(val) : 0;
+    const entry = stateData?.[i];
+    if (entry?.status === "failure") {
+      // 읽기 실패 시 undefined로 두어 "데이터 없음"과 state=0을 구분
+      return;
+    }
+    const val = entry?.result;
+    if (val !== undefined) {
+      stateMap[l.tradeContract.toLowerCase()] =
+        typeof val === "number" ? val : typeof val === "bigint" ? Number(val) : 0;
+    }
   });
 
   const endTimeMap: Record<string, bigint> = {};
@@ -63,7 +70,9 @@ export function useTradeStates(listings: Listing[]) {
     if (val != null) priceMap[l.tradeContract.toLowerCase()] = val;
   });
 
-  return { stateMap, endTimeMap, priceMap };
+  const stateReady = listings.length === 0 || stateData !== undefined;
+
+  return { stateMap, endTimeMap, priceMap, isLoading: stateLoading || !stateReady };
 }
 
 export function getStatusBadge(
