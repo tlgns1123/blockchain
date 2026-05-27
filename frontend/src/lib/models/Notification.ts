@@ -3,7 +3,7 @@ import mongoose from "mongoose";
 const notificationSchema = new mongoose.Schema(
   {
     to:           { type: String, required: true, lowercase: true },
-    type:         { type: String, enum: ["purchase", "confirm", "open_bid", "blind_bid"], required: true },
+    type:         { type: String, enum: ["purchase", "confirm", "open_bid", "blind_bid", "admin_resolve"], required: true },
     listingId:    { type: String, required: true },
     listingTitle: { type: String, default: "" },
     message:      { type: String, required: true },

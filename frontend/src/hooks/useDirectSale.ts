@@ -54,3 +54,30 @@ export function useCancelSale(address: `0x${string}`) {
     writeContractAsync({ address, abi: DirectSaleABI, functionName: "cancel" });
   return { cancel, ...rest };
 }
+
+export function useAgreeCancel(address: `0x${string}`) {
+  const { writeContractAsync, ...rest } = useWriteContract();
+  const agreeCancel = () =>
+    writeContractAsync({ address, abi: DirectSaleABI, functionName: "agreeCancel" });
+  return { agreeCancel, ...rest };
+}
+
+export function useMutualCancelState(address: `0x${string}`) {
+  const sellerAgree = useReadContract({ address, abi: DirectSaleABI, functionName: "sellerAgreeCancel" });
+  const buyerAgree  = useReadContract({ address, abi: DirectSaleABI, functionName: "buyerAgreeCancel" });
+  return { sellerAgree, buyerAgree };
+}
+
+export function useRaiseDispute(address: `0x${string}`) {
+  const { writeContractAsync, ...rest } = useWriteContract();
+  const raiseDispute = () =>
+    writeContractAsync({ address, abi: DirectSaleABI, functionName: "raiseDispute" });
+  return { raiseDispute, ...rest };
+}
+
+export function useAdminResolve(address: `0x${string}`) {
+  const { writeContractAsync, ...rest } = useWriteContract();
+  const adminResolve = (refundBuyer: boolean) =>
+    writeContractAsync({ address, abi: DirectSaleABI, functionName: "adminResolve", args: [refundBuyer] });
+  return { adminResolve, ...rest };
+}

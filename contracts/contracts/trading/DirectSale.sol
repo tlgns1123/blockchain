@@ -7,7 +7,7 @@ import "../interfaces/IInterestCalculator.sol";
 
 /// @notice 즉시구매 (고정가 판매) - BKT 토큰 결제
 contract DirectSale is ReentrancyGuard {
-    enum State { OnSale, Locked, Completed, Cancelled }
+    enum State { OnSale, Locked, Completed, Cancelled, MutualCancelled, Disputed }
 
     IERC20                public immutable token;
     address               public immutable platform;
@@ -18,12 +18,20 @@ contract DirectSale is ReentrancyGuard {
     address public buyer;
     State public state;
 
+    bool public sellerAgreeCancel;
+    bool public buyerAgreeCancel;
+
     event Purchased(address indexed buyer, uint256 price);
     event ReceivedConfirmed(address indexed buyer);
     event Cancelled();
+    event CancelRequested(address indexed requester);
+    event MutualCancelled(address indexed buyer, uint256 refund);
+    event DisputeRaised(address indexed requester);
+    event AdminResolved(address indexed winner, uint256 amount);
 
-    modifier onlySeller() { require(msg.sender == seller, "Not seller"); _; }
-    modifier onlyBuyer()  { require(msg.sender == buyer,  "Not buyer");  _; }
+    modifier onlySeller()   { require(msg.sender == seller,   "Not seller");   _; }
+    modifier onlyBuyer()    { require(msg.sender == buyer,    "Not buyer");    _; }
+    modifier onlyPlatform() { require(msg.sender == platform, "Not platform"); _; }
 
     constructor(
         uint256 _price,
@@ -63,5 +71,53 @@ contract DirectSale is ReentrancyGuard {
         require(state == State.OnSale, "Cannot cancel now");
         state = State.Cancelled;
         emit Cancelled();
+    }
+
+    /// @notice Locked 상태에서 판매자 또는 구매자가 취소에 동의
+    function agreeCancel() external nonReentrant {
+        require(state == State.Locked, "Not locked");
+        require(msg.sender == seller || msg.sender == buyer, "Not a party");
+
+        if (msg.sender == seller) {
+            require(!sellerAgreeCancel, "Already agreed");
+            sellerAgreeCancel = true;
+        } else {
+            require(!buyerAgreeCancel, "Already agreed");
+            buyerAgreeCancel = true;
+        }
+        emit CancelRequested(msg.sender);
+
+        if (sellerAgreeCancel && buyerAgreeCancel) {
+            state = State.MutualCancelled;
+            uint256 refund = token.balanceOf(address(this));
+            if (refund > 0) require(token.transfer(buyer, refund), "Refund failed");
+            emit MutualCancelled(buyer, refund);
+        }
+    }
+
+    /// @notice Locked 또는 MutualCancelled 협의 중 분쟁 신청 (판매자 또는 구매자)
+    function raiseDispute() external nonReentrant {
+        require(state == State.Locked, "Cannot dispute now");
+        require(msg.sender == seller || msg.sender == buyer, "Not a party");
+        state = State.Disputed;
+        emit DisputeRaised(msg.sender);
+    }
+
+    /// @notice 관리자(platform)가 분쟁을 해결
+    /// @param refundBuyer true → 구매자 전액 환불 / false → 판매자 정산 (수수료 차감)
+    function adminResolve(bool refundBuyer) external nonReentrant onlyPlatform {
+        require(state == State.Disputed, "Not disputed");
+        state = State.Completed;
+        uint256 balance = token.balanceOf(address(this));
+        if (refundBuyer) {
+            if (balance > 0) require(token.transfer(buyer, balance), "Refund failed");
+            emit AdminResolved(buyer, balance);
+        } else {
+            uint256 fee = interestCalc.calculate(balance, 0);
+            uint256 sellerAmount = balance > fee ? balance - fee : 0;
+            if (fee > 0)          require(token.transfer(platform, fee),         "Fee failed");
+            if (sellerAmount > 0) require(token.transfer(seller, sellerAmount),  "Seller transfer failed");
+            emit AdminResolved(seller, sellerAmount);
+        }
     }
 }

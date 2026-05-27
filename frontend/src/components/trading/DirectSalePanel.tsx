@@ -4,11 +4,14 @@ import { useState } from "react";
 import { useAccount, usePublicClient } from "wagmi";
 import {
   useApproveBkt,
+  useAgreeCancel,
   useBktAllowance,
   useCancelSale,
   useConfirmReceivedDirect,
   useDirectSaleState,
+  useMutualCancelState,
   usePurchase,
+  useRaiseDispute,
 } from "@/hooks/useDirectSale";
 import { useAuth } from "@/hooks/useAuth";
 import { useDelistItem } from "@/hooks/useMarketplace";
@@ -20,12 +23,14 @@ import { parseTxError } from "@/lib/txError";
 import { showToast } from "@/lib/toast";
 import { useBktBalance } from "@/hooks/useToken";
 
-const STATE_LABEL = ["판매중", "구매 확정 대기", "거래 완료", "취소됨"];
+const STATE_LABEL = ["판매중", "구매 확정 대기", "거래 완료", "취소됨", "상호 취소됨", "분쟁 중"];
 const STATE_COLOR = [
   "text-emerald-400 bg-emerald-500/15",
   "text-amber-400 bg-amber-500/15",
   "text-gray-500 bg-gray-200/10",
   "text-red-400 bg-red-500/15",
+  "text-orange-400 bg-orange-500/15",
+  "text-red-400 bg-red-500/20",
 ];
 
 async function sendNotification(to: string, type: string, listingId: string, listingTitle: string, message: string) {
@@ -57,6 +62,9 @@ export default function DirectSalePanel({
   const { purchase } = usePurchase(contractAddress);
   const { confirm } = useConfirmReceivedDirect(contractAddress);
   const { cancel } = useCancelSale(contractAddress);
+  const { agreeCancel } = useAgreeCancel(contractAddress);
+  const { sellerAgree, buyerAgree } = useMutualCancelState(contractAddress);
+  const { raiseDispute } = useRaiseDispute(contractAddress);
   const { delistItem } = useDelistItem();
 
   const [showReview, setShowReview] = useState(false);
@@ -71,6 +79,9 @@ export default function DirectSalePanel({
   const bktBalance = (bktBalanceRaw as bigint) ?? 0n;
   const isBuyer = address?.toLowerCase() === buyerAddr?.toLowerCase();
   const isSeller = address?.toLowerCase() === sellerAddr?.toLowerCase();
+  const sellerAgreed = (sellerAgree.data as boolean) ?? false;
+  const buyerAgreed  = (buyerAgree.data as boolean) ?? false;
+  const myAgree = isSeller ? sellerAgreed : isBuyer ? buyerAgreed : false;
   const hasBkt = bktBalance >= priceRaw;
   const linkedWallet = user?.walletAddress?.toLowerCase();
   const isWalletMismatch = !!linkedWallet && !!address && linkedWallet !== address.toLowerCase();
@@ -79,6 +90,8 @@ export default function DirectSalePanel({
     state.refetch?.();
     buyer.refetch?.();
     price.refetch?.();
+    sellerAgree.refetch?.();
+    buyerAgree.refetch?.();
     refetchAllowance();
   };
 
@@ -142,6 +155,52 @@ export default function DirectSalePanel({
     } catch (error) {
       setTxError(parseTxError(error));
       showToast("구매 처리 중 오류가 발생했습니다.", "error");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleAgreeCancel = async () => {
+    setTxError("");
+    setProcessing(true);
+    try {
+      const hash = await agreeCancel();
+      await publicClient!.waitForTransactionReceipt({ hash });
+      refetchAll();
+
+      const oppositeAddr = isSeller ? buyerAddr : sellerAddr;
+      const newSellerAgreed = isSeller ? true : sellerAgreed;
+      const newBuyerAgreed  = isBuyer  ? true : buyerAgreed;
+
+      if (newSellerAgreed && newBuyerAgreed) {
+        if (listingId != null) await delistItem(listingId);
+        showToast("상호 합의 취소 완료. BKT가 구매자에게 환불되었습니다.", "info");
+        await sendNotification(oppositeAddr, "cancel", listingId?.toString() ?? "", listingTitle ?? "", `상호 합의로 거래가 취소되어 BKT가 환불되었습니다${listingTitle ? ` · ${listingTitle}` : ""}.`);
+      } else {
+        showToast("취소 요청을 보냈습니다. 상대방이 동의하면 환불됩니다.", "info");
+        await sendNotification(oppositeAddr, "cancel", listingId?.toString() ?? "", listingTitle ?? "", `상대방이 거래 취소를 요청했습니다${listingTitle ? ` · ${listingTitle}` : ""}. 동의하면 BKT가 환불됩니다.`);
+      }
+    } catch (error) {
+      setTxError(parseTxError(error));
+      showToast("취소 요청 중 오류가 발생했습니다.", "error");
+    } finally {
+      setProcessing(false);
+    }
+  };
+
+  const handleRaiseDispute = async () => {
+    setTxError("");
+    setProcessing(true);
+    try {
+      const hash = await raiseDispute();
+      await publicClient!.waitForTransactionReceipt({ hash });
+      refetchAll();
+      showToast("분쟁이 접수되었습니다. 관리자가 검토 후 처리합니다.", "info");
+      const oppositeAddr = isSeller ? buyerAddr : sellerAddr;
+      await sendNotification(oppositeAddr, "dispute", listingId?.toString() ?? "", listingTitle ?? "", `상대방이 분쟁을 신청했습니다${listingTitle ? ` · ${listingTitle}` : ""}. 관리자가 중재합니다.`);
+    } catch (error) {
+      setTxError(parseTxError(error));
+      showToast("분쟁 신청 중 오류가 발생했습니다.", "error");
     } finally {
       setProcessing(false);
     }
@@ -232,7 +291,55 @@ export default function DirectSalePanel({
           </div>
         )}
 
-        {currentState >= 2 && <p className="text-center text-sm text-gray-400 py-2">{STATE_LABEL[currentState]}</p>}
+        {currentState === 1 && (isBuyer || isSeller) && (
+          <div className="rounded-xl px-4 py-3 space-y-3" style={{ background: "rgba(249,115,22,0.08)", border: "1px solid rgba(249,115,22,0.2)" }}>
+            <p className="text-xs font-semibold" style={{ color: "#fb923c" }}>상호 합의 취소</p>
+            <div className="flex gap-3 text-xs" style={{ color: "#9ca3af" }}>
+              <span>판매자 {sellerAgreed ? "✅" : "⬜"}</span>
+              <span>구매자 {buyerAgreed  ? "✅" : "⬜"}</span>
+            </div>
+            <p className="text-xs" style={{ color: "#6b7280" }}>
+              양측이 모두 동의하면 BKT가 구매자에게 즉시 환불됩니다.
+            </p>
+            {myAgree ? (
+              <p className="text-xs" style={{ color: "#fb923c" }}>취소 요청을 보냈습니다. 상대방의 동의를 기다리는 중...</p>
+            ) : (
+              <TxButton
+                className="w-full"
+                variant="secondary"
+                label="취소 동의"
+                loading={processing}
+                onClick={handleAgreeCancel}
+                disabled={isWalletMismatch}
+              />
+            )}
+          </div>
+        )}
+
+        {currentState === 1 && (isBuyer || isSeller) && (
+          <div className="rounded-xl px-4 py-3 space-y-2" style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)" }}>
+            <p className="text-xs font-semibold" style={{ color: "#f87171" }}>분쟁 신청</p>
+            <p className="text-xs" style={{ color: "#6b7280" }}>
+              상호합의가 되지 않는다면 관리자에게 중재를 요청할 수 있습니다.
+            </p>
+            <TxButton
+              className="w-full"
+              variant="secondary"
+              label="관리자 중재 요청"
+              loading={processing}
+              onClick={handleRaiseDispute}
+              disabled={isWalletMismatch}
+            />
+          </div>
+        )}
+
+        {currentState === 5 && (
+          <div className="rounded-xl px-4 py-3 text-xs" style={{ background: "rgba(239,68,68,0.1)", color: "#fca5a5" }}>
+            분쟁이 접수되었습니다. 관리자 검토 후 처리됩니다.
+          </div>
+        )}
+
+        {currentState >= 2 && currentState !== 5 && <p className="text-center text-sm text-gray-400 py-2">{STATE_LABEL[currentState]}</p>}
 
         {!address && currentState === 0 && <p className="text-xs text-center text-gray-400">지갑을 연결하면 구매할 수 있습니다.</p>}
       </div>

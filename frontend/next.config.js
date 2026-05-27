@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true,
+  reactStrictMode: process.env.NODE_ENV === "production",
   webpack: (config) => {
     // wagmi/viem 에서 필요한 폴리필
     config.resolve.fallback = {
