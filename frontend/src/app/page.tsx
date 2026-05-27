@@ -140,7 +140,7 @@ export default function HomePage() {
         <p className="text-xs leading-relaxed" style={{ color: "#7878a0" }}>
           모든 거래는 Sepolia 테스트넷에서 진행됩니다. 실제 ETH는 필요하지 않으며{" "}
           <a
-            href="https://sepoliafaucet.com"
+            href="https://cloud.google.com/application/web3/faucet/ethereum/sepolia"
             target="_blank"
             rel="noreferrer"
             className="text-brand-400 hover:text-brand-300 underline transition-colors"
