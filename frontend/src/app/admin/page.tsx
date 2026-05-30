@@ -5,12 +5,13 @@ import { useAccount, usePublicClient, useChainId, useReadContracts } from "wagmi
 import { useListings } from "@/hooks/useMarketplace";
 import { useTradeStates } from "@/hooks/useTradeStates";
 import { useAdminResolve } from "@/hooks/useDirectSale";
-import { useBktBalance } from "@/hooks/useToken";
 import { getContracts } from "@/config/contracts";
 import { parseTxError } from "@/lib/txError";
 import { showToast } from "@/lib/toast";
 import { formatBKT, truncateAddress } from "@/lib/utils";
 import DirectSaleABI from "@/abi/DirectSale.json";
+import OpenAuctionABI from "@/abi/OpenAuction.json";
+import BlindAuctionABI from "@/abi/BlindAuction.json";
 import type { Listing } from "@/types";
 
 /* ─── 타입 ─── */
@@ -274,6 +275,150 @@ function DisputedList({
   );
 }
 
+/* ─── 거래 내역 ─── */
+const SALE_TYPE_LABEL = ["즉시구매", "공개경매", "블라인드경매"];
+const FEE_BPS = 250n;
+
+function TxHistory({
+  listings,
+  stateMap,
+}: {
+  listings: Listing[];
+  stateMap: Record<string, number>;
+}) {
+  const completed = listings.filter(
+    (l) => stateMap[l.tradeContract.toLowerCase()] === 2
+  );
+
+  const counterpartyContracts = completed.map((l) => ({
+    address: l.tradeContract as `0x${string}`,
+    abi: (l.saleType === 0 ? DirectSaleABI : l.saleType === 1 ? OpenAuctionABI : BlindAuctionABI) as any,
+    functionName: l.saleType === 0 ? "buyer" : "winner",
+  }));
+
+  const amountContracts = completed.map((l) => ({
+    address: l.tradeContract as `0x${string}`,
+    abi: (l.saleType === 0 ? DirectSaleABI : l.saleType === 1 ? OpenAuctionABI : BlindAuctionABI) as any,
+    functionName: l.saleType === 0 ? "price" : l.saleType === 1 ? "highestBid" : "winningAmount",
+  }));
+
+  const { data: counterpartyData, isLoading: cpLoading } = useReadContracts({
+    contracts: counterpartyContracts as any,
+    query: { enabled: completed.length > 0 },
+  });
+  const { data: amountData, isLoading: amLoading } = useReadContracts({
+    contracts: amountContracts as any,
+    query: { enabled: completed.length > 0 },
+  });
+
+  if (cpLoading || amLoading) {
+    return (
+      <div className="py-12 text-center">
+        <div className="w-5 h-5 border-2 border-brand-300 border-t-brand-500 rounded-full animate-spin mx-auto" />
+      </div>
+    );
+  }
+
+  if (completed.length === 0) {
+    return (
+      <div className="py-12 text-center text-sm" style={{ color: "#565670" }}>
+        완료된 거래가 없습니다.
+      </div>
+    );
+  }
+
+  const rows = completed.map((l, i) => {
+    const counterparty = (counterpartyData?.[i]?.result as string) ?? "";
+    const amount = (amountData?.[i]?.result as bigint) ?? 0n;
+    const fee = (amount * FEE_BPS) / 10000n;
+    const net = amount - fee;
+    return { listing: l, counterparty, amount, fee, net };
+  });
+
+  const totalAmount = rows.reduce((s, r) => s + r.amount, 0n);
+  const totalFee    = rows.reduce((s, r) => s + r.fee, 0n);
+
+  return (
+    <div>
+      {/* 합계 행 */}
+      <div
+        className="px-5 py-3 flex items-center justify-between text-xs font-semibold"
+        style={{ background: "rgba(139,92,246,0.08)", borderBottom: "1px solid rgba(255,255,255,0.06)" }}
+      >
+        <span style={{ color: "#9ca3af" }}>총 {rows.length}건</span>
+        <div className="flex gap-6">
+          <span style={{ color: "#9ca3af" }}>
+            거래총액 <span style={{ color: "#c4b5fd" }}>{formatBKT(totalAmount)}</span>
+          </span>
+          <span style={{ color: "#9ca3af" }}>
+            누적 수수료 <span style={{ color: "#34d399" }}>{formatBKT(totalFee)}</span>
+          </span>
+        </div>
+      </div>
+
+      {/* 헤더 */}
+      <div
+        className="px-5 py-2 grid text-xs font-semibold"
+        style={{
+          gridTemplateColumns: "2fr 1fr 1.5fr 1.5fr 1fr 1fr 1fr",
+          color: "#565670",
+          borderBottom: "1px solid rgba(255,255,255,0.05)",
+        }}
+      >
+        <span>상품명</span>
+        <span>유형</span>
+        <span>판매자</span>
+        <span>구매자</span>
+        <span className="text-right">거래금액</span>
+        <span className="text-right">수수료(2.5%)</span>
+        <span className="text-right">판매자 수령</span>
+      </div>
+
+      {/* 데이터 행 */}
+      <div className="divide-y" style={{ borderColor: "rgba(255,255,255,0.04)" }}>
+        {rows.map(({ listing: l, counterparty, amount, fee, net }) => (
+          <div
+            key={l.tradeContract}
+            className="px-5 py-3 grid items-center text-xs"
+            style={{ gridTemplateColumns: "2fr 1fr 1.5fr 1.5fr 1fr 1fr 1fr" }}
+          >
+            <span className="truncate pr-2 font-medium" style={{ color: "#f0f0f8" }}>
+              {l.title}
+            </span>
+            <span
+              className="px-2 py-0.5 rounded-full text-center w-fit"
+              style={
+                l.saleType === 0
+                  ? { background: "rgba(96,165,250,0.15)", color: "#93c5fd" }
+                  : l.saleType === 1
+                  ? { background: "rgba(52,211,153,0.12)", color: "#6ee7b7" }
+                  : { background: "rgba(251,191,36,0.12)", color: "#fcd34d" }
+              }
+            >
+              {SALE_TYPE_LABEL[l.saleType]}
+            </span>
+            <span className="font-mono truncate" style={{ color: "#9ca3af" }}>
+              {truncateAddress(l.seller)}
+            </span>
+            <span className="font-mono truncate" style={{ color: "#9ca3af" }}>
+              {counterparty ? truncateAddress(counterparty) : "—"}
+            </span>
+            <span className="text-right font-semibold" style={{ color: "#c4b5fd" }}>
+              {formatBKT(amount)}
+            </span>
+            <span className="text-right" style={{ color: "#34d399" }}>
+              {formatBKT(fee)}
+            </span>
+            <span className="text-right" style={{ color: "#d1d5db" }}>
+              {formatBKT(net)}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ─── 처리 완료 로그 ─── */
 function DisputeHistory() {
   const [logs, setLogs] = useState<any[]>([]);
@@ -320,7 +465,7 @@ export default function AdminPage() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
-  const [activeTab, setActiveTab] = useState<"queue" | "history">("queue");
+  const [activeTab, setActiveTab] = useState<"queue" | "txhistory" | "history">("queue");
 
   const { address } = useAccount();
   const chainId = useChainId();
@@ -332,8 +477,25 @@ export default function AdminPage() {
   let platformAddress = "";
   try { platformAddress = getContracts(chainId).platform.toLowerCase(); } catch {}
 
-  const { data: platformBktRaw } = useBktBalance(platformAddress as `0x${string}` || undefined);
-  const platformBkt = (platformBktRaw as bigint) ?? 0n;
+  // 완료 거래 수수료 합산 (플랫폼 지갑 잔액 대신 실제 수수료만 계산)
+  const completedListings = listings.filter(
+    (l) => stateMap[l.tradeContract.toLowerCase()] === 2
+  );
+  const feeAmountContracts = completedListings.map((l) => ({
+    address: l.tradeContract as `0x${string}`,
+    abi: (l.saleType === 0 ? DirectSaleABI : l.saleType === 1 ? OpenAuctionABI : BlindAuctionABI) as any,
+    functionName: l.saleType === 0 ? "price" : l.saleType === 1 ? "highestBid" : "winningAmount",
+  }));
+  const { data: feeAmountData } = useReadContracts({
+    contracts: feeAmountContracts as any,
+    query: { enabled: completedListings.length > 0 },
+  });
+  const totalAccruedFee = feeAmountData
+    ? feeAmountData.reduce((sum, d) => {
+        const amt = (d?.result as bigint) ?? 0n;
+        return sum + (amt * 250n) / 10000n;
+      }, 0n)
+    : 0n;
 
   const now = Math.floor(Date.now() / 1000);
 
@@ -393,11 +555,14 @@ export default function AdminPage() {
         ))}
       </div>
 
-      {/* 플랫폼 BKT 잔액 */}
+      {/* 플랫폼 누적 수수료 */}
       <div className="card p-5 flex items-center justify-between">
         <div>
           <p className="text-xs" style={{ color: "#565670" }}>플랫폼 누적 수수료 (BKT)</p>
-          <p className="text-xl font-bold mt-1" style={{ color: "#c4b5fd" }}>{formatBKT(platformBkt)}</p>
+          <p className="text-xl font-bold mt-1" style={{ color: "#34d399" }}>
+            {isLoading || completedListings.length > 0 && !feeAmountData ? "—" : formatBKT(totalAccruedFee)}
+          </p>
+          <p className="text-xs mt-1" style={{ color: "#3f3f60" }}>완료 거래 수수료 합산 (2.5%)</p>
         </div>
         <span className="text-xs font-mono px-3 py-1.5 rounded-lg" style={{ background: "rgba(255,255,255,0.05)", color: "#565670" }}>
           {truncateAddress(platformAddress as `0x${string}`)}
@@ -408,8 +573,9 @@ export default function AdminPage() {
       <div className="card overflow-hidden">
         <div className="flex" style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}>
           {([
-            { key: "queue",   label: "분쟁 대기", badge: disputedCount as number | undefined },
-            { key: "history", label: "처리 이력", badge: undefined },
+            { key: "queue",     label: "분쟁 대기", badge: disputedCount as number | undefined },
+            { key: "txhistory", label: "거래 내역", badge: undefined },
+            { key: "history",   label: "분쟁 처리 이력", badge: undefined },
           ] as const).map(({ key, label, badge }) => (
             <button
               key={key}
@@ -438,6 +604,14 @@ export default function AdminPage() {
             </div>
           ) : (
             <DisputedList listings={listings} stateMap={stateMap} />
+          )
+        ) : activeTab === "txhistory" ? (
+          isLoading ? (
+            <div className="py-12 text-center">
+              <div className="w-5 h-5 border-2 border-brand-300 border-t-brand-500 rounded-full animate-spin mx-auto" />
+            </div>
+          ) : (
+            <TxHistory listings={listings} stateMap={stateMap} />
           )
         ) : (
           <DisputeHistory />

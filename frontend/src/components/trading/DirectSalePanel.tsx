@@ -57,7 +57,7 @@ export default function DirectSalePanel({
   const publicClient = usePublicClient();
   const { price, buyer, seller, state } = useDirectSaleState(contractAddress);
   const { data: allowanceRaw, refetch: refetchAllowance } = useBktAllowance(address, contractAddress);
-  const { data: bktBalanceRaw } = useBktBalance(address);
+  const { data: bktBalanceRaw, refetch: refetchBktBalance } = useBktBalance(address);
   const { approve } = useApproveBkt(contractAddress);
   const { purchase } = usePurchase(contractAddress);
   const { confirm } = useConfirmReceivedDirect(contractAddress);
@@ -93,6 +93,7 @@ export default function DirectSalePanel({
     sellerAgree.refetch?.();
     buyerAgree.refetch?.();
     refetchAllowance();
+    refetchBktBalance();
   };
 
   const handleCancel = async () => {

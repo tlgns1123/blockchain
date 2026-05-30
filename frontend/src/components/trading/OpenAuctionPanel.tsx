@@ -25,6 +25,7 @@ import ReviewModal from "@/components/trading/ReviewModal";
 import { formatBKT, truncateAddress } from "@/lib/utils";
 import { parseTxError } from "@/lib/txError";
 import { showToast } from "@/lib/toast";
+import { useBktBalance } from "@/hooks/useToken";
 
 async function sendNotification(to: string, type: string, listingId: string, listingTitle: string, message: string) {
   await fetch("/api/notifications", {
@@ -61,6 +62,7 @@ export default function OpenAuctionPanel({
   const { endTime, highestBidder, highestBid, state, winner, seller, reservePrice } = useOpenAuctionState(contractAddress);
   const { data: allowanceRaw, refetch: refetchAllowance } = useBktAllowanceOpen(address, contractAddress);
   const { data: pendingRefundRaw, refetch: refetchPendingRefund } = usePendingRefundOpen(contractAddress, address);
+  const { refetch: refetchBktBalance } = useBktBalance(address);
   const { approve } = useApproveBktOpen(contractAddress);
   const { placeBid } = usePlaceBid(contractAddress);
   const { endAuction } = useEndAuction(contractAddress);
@@ -103,6 +105,7 @@ export default function OpenAuctionPanel({
     winner.refetch?.();
     refetchAllowance();
     refetchPendingRefund();
+    refetchBktBalance();
   };
 
   const handleBid = async () => {

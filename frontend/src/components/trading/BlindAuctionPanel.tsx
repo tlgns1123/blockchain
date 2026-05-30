@@ -24,6 +24,7 @@ import ReviewModal from "@/components/trading/ReviewModal";
 import { formatBKT, truncateAddress } from "@/lib/utils";
 import { parseTxError } from "@/lib/txError";
 import { showToast } from "@/lib/toast";
+import { useBktBalance } from "@/hooks/useToken";
 
 const STORAGE_KEY = (address: string) => `bk_blind_commit_${address.toLowerCase()}`;
 
@@ -67,6 +68,7 @@ export default function BlindAuctionPanel({
 
   const { endTime, revealEndTime, state, winner, winningAmount, seller, reservePrice } = useBlindAuctionState(contractAddress);
   const { data: allowanceRaw, refetch: refetchAllowance } = useBktAllowanceBlind(address, contractAddress);
+  const { refetch: refetchBktBalance } = useBktBalance(address);
   const { approve } = useApproveBktBlind(contractAddress);
   const { commit } = useCommitBid(contractAddress);
   const { reveal } = useRevealBid(contractAddress);
@@ -128,6 +130,7 @@ export default function BlindAuctionPanel({
     winner.refetch?.();
     winningAmount.refetch?.();
     refetchAllowance();
+    refetchBktBalance();
   };
 
   const handleCommit = async () => {
