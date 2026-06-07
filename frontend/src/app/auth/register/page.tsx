@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useAccount, useSignMessage } from "wagmi";
+import { useAccount, useSignMessage, useDisconnect, useChainId, useSwitchChain } from "wagmi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
+import { sepolia } from "wagmi/chains";
 import EmailField from "@/components/common/EmailField";
 import NicknameField from "@/components/common/NicknameField";
 import PasswordRequirements from "@/components/common/PasswordRequirements";
@@ -15,6 +16,16 @@ export default function RegisterPage() {
   const { address, isConnected } = useAccount();
   const { openConnectModal } = useConnectModal();
   const { signMessageAsync } = useSignMessage();
+  const { disconnect } = useDisconnect();
+  const chainId = useChainId();
+  const { switchChain, isPending: isSwitching } = useSwitchChain();
+
+  const isWrongChain = isConnected && chainId !== sepolia.id;
+
+  const handleChangeWallet = () => {
+    disconnect();
+    setTimeout(() => openConnectModal?.(), 100);
+  };
 
   const [form, setForm] = useState({ email: "", nickname: "", password: "", confirm: "" });
   const [emailAvailable, setEmailAvailable] = useState(false);
@@ -202,29 +213,48 @@ export default function RegisterPage() {
               지갑 연결 <span className="text-red-400">*</span>
             </label>
             {isConnected && address ? (
-              <div
-                className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm"
-                style={{
-                  background: walletError ? "rgba(239,68,68,0.08)" : "rgba(52,211,153,0.08)",
-                  border: `1px solid ${walletError ? "rgba(239,68,68,0.3)" : "rgba(52,211,153,0.3)"}`,
-                  color: walletError ? "#fca5a5" : "#34d399",
-                }}
-              >
-                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${walletError ? "bg-red-400" : "bg-emerald-400"}`} />
-                <span className="font-medium">{truncateAddress(address)}</span>
-                <span className="text-xs ml-auto" style={{ color: "#565670" }}>
-                  {walletChecking ? "확인 중..." : walletError ? "사용 불가" : "연결됨"}
-                </span>
-              </div>
+              <>
+                <div
+                  className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm"
+                  style={{
+                    background: walletError || isWrongChain ? "rgba(239,68,68,0.08)" : "rgba(52,211,153,0.08)",
+                    border: `1px solid ${walletError || isWrongChain ? "rgba(239,68,68,0.3)" : "rgba(52,211,153,0.3)"}`,
+                    color: walletError || isWrongChain ? "#fca5a5" : "#34d399",
+                  }}
+                >
+                  <span className={`w-2 h-2 rounded-full flex-shrink-0 ${walletError || isWrongChain ? "bg-red-400" : "bg-emerald-400"}`} />
+                  <span className="font-medium">{truncateAddress(address)}</span>
+                  <button
+                    type="button"
+                    onClick={handleChangeWallet}
+                    className="text-xs ml-auto hover:underline"
+                    style={{ color: "#8b8ba8" }}
+                  >
+                    {walletChecking ? "확인 중..." : "지갑 변경"}
+                  </button>
+                </div>
+                {isWrongChain && (
+                  <div className="flex items-center justify-between mt-1.5">
+                    <p className="text-xs text-red-400">Sepolia 네트워크로 전환이 필요합니다.</p>
+                    <button
+                      type="button"
+                      onClick={() => switchChain({ chainId: sepolia.id })}
+                      disabled={isSwitching}
+                      className="text-xs text-brand-400 hover:underline ml-2"
+                    >
+                      {isSwitching ? "전환 중..." : "전환하기"}
+                    </button>
+                  </div>
+                )}
+                {!isWrongChain && walletError && <p className="text-xs text-red-400 mt-1.5">{walletError}</p>}
+                {!isWrongChain && !walletError && <p className="text-xs text-gray-400 mt-1.5">지갑은 계정당 1개만 연결할 수 있습니다.</p>}
+              </>
             ) : (
               <button type="button" onClick={openConnectModal} className="w-full btn-secondary text-sm py-3">
                 MetaMask 연결하기
               </button>
             )}
-            {walletError && (
-              <p className="text-xs text-red-400 mt-1.5">{walletError}</p>
-            )}
-            {!walletError && <p className="text-xs text-gray-400 mt-1.5">지갑은 계정당 1개만 연결할 수 있습니다.</p>}
+            {!isConnected && <p className="text-xs text-gray-400 mt-1.5">지갑은 계정당 1개만 연결할 수 있습니다.</p>}
           </div>
 
           {error && (
@@ -236,7 +266,7 @@ export default function RegisterPage() {
             </div>
           )}
 
-          <button type="submit" disabled={loading || !isConnected || !!walletError || walletChecking} className="btn-primary w-full mt-2">
+          <button type="submit" disabled={loading || !isConnected || !!walletError || walletChecking || isWrongChain} className="btn-primary w-full mt-2">
             {loading ? "가입 중..." : "회원가입"}
           </button>
         </form>
