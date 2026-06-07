@@ -51,6 +51,11 @@ export async function createUser(data: {
   return toUser(doc);
 }
 
+export async function deleteUser(id: string): Promise<void> {
+  await connectDB();
+  await UserModel.findByIdAndDelete(id);
+}
+
 export async function updateUser(
   id: string,
   patch: Partial<Pick<User, "nickname" | "passwordHash" | "walletAddress">>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAccount, useSignMessage } from "wagmi";
@@ -19,8 +19,28 @@ export default function RegisterPage() {
   const [form, setForm] = useState({ email: "", nickname: "", password: "", confirm: "" });
   const [emailAvailable, setEmailAvailable] = useState(false);
   const [nicknameAvailable, setNicknameAvailable] = useState(false);
+  const [walletError, setWalletError] = useState("");
+  const [walletChecking, setWalletChecking] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!address) {
+      setWalletError("");
+      return;
+    }
+    let cancelled = false;
+    setWalletChecking(true);
+    setWalletError("");
+    fetch(`/api/auth/check-wallet?address=${address}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled && !data.available) setWalletError(data.message);
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setWalletChecking(false); });
+    return () => { cancelled = true; };
+  }, [address]);
 
   const setField =
     (key: keyof typeof form) => (event: React.ChangeEvent<HTMLInputElement>) =>
@@ -49,6 +69,11 @@ export default function RegisterPage() {
       return;
     }
 
+    if (walletError) {
+      setError(walletError);
+      return;
+    }
+
     setLoading(true);
     setError("");
 
@@ -60,12 +85,13 @@ export default function RegisterPage() {
           email: form.email,
           nickname: form.nickname,
           password: form.password,
+          walletAddress: address,
         }),
       });
 
-      const registerData = await registerRes.json();
+      const registerData = await registerRes.json().catch(() => ({}));
       if (!registerRes.ok) {
-        setError(registerData.error);
+        setError(registerData.error || "회원가입 처리 중 오류가 발생했습니다.");
         return;
       }
 
@@ -84,17 +110,22 @@ export default function RegisterPage() {
       });
 
       if (!verifyRes.ok) {
-        const verifyData = await verifyRes.json();
+        const verifyData = await verifyRes.json().catch(() => ({}));
         setError(verifyData.error || "지갑 연결에 실패했습니다.");
         return;
       }
 
       router.push("/profile");
     } catch (error: any) {
-      if (error?.code === 4001 || error?.message?.includes("rejected")) {
+      const isRejected =
+        error?.code === 4001 ||
+        error?.name === "UserRejectedRequestError" ||
+        error?.message?.toLowerCase().includes("rejected") ||
+        error?.message?.toLowerCase().includes("denied");
+      if (isRejected) {
         setError("지갑 서명이 취소되었습니다.");
       } else {
-        setError("서버 오류가 발생했습니다.");
+        setError(error?.shortMessage || error?.message || "서버 오류가 발생했습니다.");
       }
     } finally {
       setLoading(false);
@@ -173,12 +204,16 @@ export default function RegisterPage() {
             {isConnected && address ? (
               <div
                 className="flex items-center gap-2 px-4 py-3 rounded-xl text-sm"
-                style={{ background: "rgba(52,211,153,0.08)", border: "1px solid rgba(52,211,153,0.3)", color: "#34d399" }}
+                style={{
+                  background: walletError ? "rgba(239,68,68,0.08)" : "rgba(52,211,153,0.08)",
+                  border: `1px solid ${walletError ? "rgba(239,68,68,0.3)" : "rgba(52,211,153,0.3)"}`,
+                  color: walletError ? "#fca5a5" : "#34d399",
+                }}
               >
-                <span className="w-2 h-2 rounded-full bg-emerald-400 flex-shrink-0" />
+                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${walletError ? "bg-red-400" : "bg-emerald-400"}`} />
                 <span className="font-medium">{truncateAddress(address)}</span>
                 <span className="text-xs ml-auto" style={{ color: "#565670" }}>
-                  연결됨
+                  {walletChecking ? "확인 중..." : walletError ? "사용 불가" : "연결됨"}
                 </span>
               </div>
             ) : (
@@ -186,7 +221,10 @@ export default function RegisterPage() {
                 MetaMask 연결하기
               </button>
             )}
-            <p className="text-xs text-gray-400 mt-1.5">지갑은 계정당 1개만 연결할 수 있습니다.</p>
+            {walletError && (
+              <p className="text-xs text-red-400 mt-1.5">{walletError}</p>
+            )}
+            {!walletError && <p className="text-xs text-gray-400 mt-1.5">지갑은 계정당 1개만 연결할 수 있습니다.</p>}
           </div>
 
           {error && (
@@ -198,7 +236,7 @@ export default function RegisterPage() {
             </div>
           )}
 
-          <button type="submit" disabled={loading || !isConnected} className="btn-primary w-full mt-2">
+          <button type="submit" disabled={loading || !isConnected || !!walletError || walletChecking} className="btn-primary w-full mt-2">
             {loading ? "가입 중..." : "회원가입"}
           </button>
         </form>
